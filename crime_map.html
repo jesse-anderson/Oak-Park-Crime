@@ -351,6 +351,17 @@
         #applySearch:hover, #clearSearch:hover { filter: brightness(0.95); }
         #searchStatus { margin-top: 4px; font-size: 11px; color: #666; }
 
+        .leaflet-tooltip.zone-label {
+        background: rgba(0,0,0,0.55);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 12px;
+        box-shadow: none;
+        }
+
+
     </style>
 </head>
 <body>
@@ -531,6 +542,27 @@
         let hydratingFromHash = false; // skip writing hash back during initial load
         let firstRenderDone = false;   // prevents duplicate initial queries
 
+        //Zone sstuff
+        let zones2024LayerGroup = null;          // L.LayerGroup containing all zones
+        let zones2024Ready = null;                // Promise so we can await before making the control
+        const ZONES_PANE = 'zones2024Pane';
+
+        // 8 distinct, map-friendly colors (Okabe–Ito)
+        //https://easystats.github.io/see/reference/scale_color_okabeito.html
+        const ZONES_COLORS = [
+        '#E69F00', // Zone 1  (orange)
+        '#56B4E9', // Zone 2  (sky blue)
+        '#009E73', // Zone 3  (bluish green)
+        '#F0E442', // Zone 4  (yellow)
+        '#0072B2', // Zone 5  (blue)
+        '#D55E00', // Zone 6  (vermillion)
+        '#CC79A7', // Zone 7  (reddish purple)
+        '#999999'  // Zone 8  (gray)
+        ];
+
+        const ZONES_FILL_OPACITY = 0.18;          // keep the map visible underneath
+        const ZONES_STROKE_WEIGHT = 2;            // boundary line thickness
+
         // Initialize everything once the page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Set current year in footer
@@ -629,9 +661,64 @@
             // Initialize DuckDB
             initializeDuckDB();
 
-
+            zones2024Ready = (async () => {
+                try { await loadZonesCombined(); registerZonesOverlayIfReady(); }
+                catch (e) { console.error('[Zones] combined load failed:', e); }
+                })();
         });
         
+function zoneColorByIndex(idx) {
+  return ZONES_COLORS[idx % ZONES_COLORS.length];
+}
+
+function zoneColorByProp(feature, indexFallback) {
+  // Prefer explicit 1..8 zone numbers if present
+  const z = feature?.properties?.zone;
+  if (Number.isInteger(z) && z >= 1 && z <= 8) return ZONES_COLORS[z - 1];
+  return zoneColorByIndex(indexFallback);
+}
+
+function zoneStyle(color) {
+  return {
+    color,                    // stroke
+    weight: ZONES_STROKE_WEIGHT,
+    fillColor: color,
+    fillOpacity: ZONES_FILL_OPACITY
+  };
+}
+
+// Option 1: load combined file
+async function loadZonesCombined() {
+  const resp = await fetch('data/policing_zones_2024.geojson', { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const gj = await resp.json();
+
+  let idx = 0;
+  const layer = L.geoJSON(gj, {
+    pane: ZONES_PANE,
+    style: (feature) => zoneStyle(zoneColorByProp(feature, idx++)),
+    // Optional: labels in the center of each polygon
+    onEachFeature: (feature, l) => {
+      const nm = feature?.properties?.name ?? feature?.properties?.zone ?? '';
+      if (nm) l.bindTooltip(String(nm), { permanent: true, direction: 'center', className: 'zone-label' });
+    }
+  });
+
+  zones2024LayerGroup = L.layerGroup([layer]);
+}
+
+// Registers the overlay in the control if it already exists; otherwise we’ll
+// add it later when building the control in addCrimesToMap(...)
+function registerZonesOverlayIfReady() {
+  if (!zones2024LayerGroup) return;
+  if (typeof layerControl !== 'undefined' && layerControl) {
+    layerControl.addOverlay(zones2024LayerGroup, 'Policing Zones [2024]');
+  } else {
+    // we’ll add it when the control is created
+    if (!window.__pendingOverlays) window.__pendingOverlays = [];
+    window.__pendingOverlays.push({ name: 'Policing Zones [2024]', layer: zones2024LayerGroup });
+  }
+}
 
 function applyFiltersOnceOnInit() {
   if (firstRenderDone) return; // no-op if something already triggered it
@@ -1253,6 +1340,11 @@ async function initializeDuckDB() {
             // Create map centered on Oak Park
             map = L.map('map').setView([OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG], 13);
             
+            //policing zones
+            const zonesPane = map.createPane(ZONES_PANE);
+            zonesPane.style.zIndex = 350;
+            zonesPane.style.pointerEvents = 'none';   // don’t block marker/popup clicks
+            
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -1487,7 +1579,7 @@ async function initializeDuckDB() {
             if (heatmapLayer && !isMobile) {
                 heatmapLayer.addTo(map); // keep off by default on mobile, still togglable via control
             }
-            
+        
             // Create the layer control with both options
             // This is the critical part that enables toggling between visualization modes
             const overlays = {};
@@ -1497,7 +1589,10 @@ async function initializeDuckDB() {
             if (heatmapLayer) {
                 overlays["Heatmap"] = heatmapLayer;
             }
-            
+            // if (zones2024LayerGroup) {
+            //     overlays["Policing Zones [2024]"] = zones2024LayerGroup;
+            // }
+
             // Add layer control only if we have layers to control
             if (Object.keys(overlays).length > 0) {
                 layerControl = L.control.layers(null, overlays, {
@@ -1506,6 +1601,16 @@ async function initializeDuckDB() {
                 }).addTo(map);
             }
             
+            //also eye this suspiciously
+            // Flush any overlays that registered before the control existed
+            if (window.__pendingOverlays?.length) {
+            for (const {name, layer} of window.__pendingOverlays) {
+                try { layerControl.addOverlay(layer, name); } catch (e) {
+                console.warn('Pending overlay failed to add:', name, e);
+                }
+            }
+            window.__pendingOverlays = [];
+            }
             // Fit map to show all markers if we have any
             if (markers.length > 0) {
                 const group = new L.featureGroup(markers);
