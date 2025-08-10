@@ -967,8 +967,9 @@ async function initializeDuckDB() {
         await loadMetadata(); 
         await populateInitialOffenseDropdown(); 
         
-        document.getElementById('dateSelector').value = 'last14';
-        console.log("[DB Init] Default dateSelector set to 'last14'.");
+        //its funny how much these two lines messed with my hashes by automatically setting to last 14 dats >.<
+        // document.getElementById('dateSelector').value = 'last14';
+        // console.log("[DB Init] Default dateSelector set to 'last14'.");
         
         // 1) (Optional guard) Only set the "last14" default if there is NO hash date.
         //    If a hash date exists, honor it and DO NOT touch the selector.
