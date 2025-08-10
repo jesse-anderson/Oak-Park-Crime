@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oak Park Crime Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    
+    <!-- Date Range Picker -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+    
+    <!-- Import map for apache-arrow (needed for DuckDB-WASM) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "apache-arrow": "https://esm.sh/apache-arrow@11.0.0",
+        "apache-arrow/": "https://esm.sh/apache-arrow@11.0.0/"
+      }
+    }
+    </script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        /* When the disclaimer is up, freeze everything behind it */
+        body.no-scroll{
+            overflow: hidden;        /* no scrollbars */
+            position: fixed;         /* keep viewport locked */
+            width: 100%;             /* stop lateral shift */
+        }
+        #map {
+            width: 100%;
+            height:calc(100vh - 50px);
+            /* height: 100vh; */
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .leaflet-popup-content {
+            max-width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling:touch; /* smooth on iOS */
+            font-size: 10px;
+        }
+        .control-panel {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 1000;
+            background: white;
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+            max-width: 320px;
+            min-width: 280px;
+        }
+        .control-panel h3 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 18px;
+        }
+        .time-selector, .offense-selector {
+            margin-bottom: 5px;
+        }
+        .date-range {
+            margin-top: 5px;
+            display: none;
+        }
+        #dateSelector, #offenseType {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        #customRange {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #applyFilters, #exportCSV {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        #exportCSV {
+            background: #2196F3;
+            margin-top: 10px;
+        }
+        #applyFilters:hover {
+            background: #45a049;
+        }
+        #exportCSV:hover {
+            background: #1976D2;
+        }
+        #applyFilters:disabled, #exportCSV:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #stats {
+            margin-top: 5px;
+            font-size: 12px;
+            background: #f8f9fa;
+            padding: 5px;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        .label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+            font-size: 13px;
+        }
+        #disclaimerOverlay {
+            position: fixed;
+            z-index: 9999; 
+            left: 0;
+            top: 0;
+            width: 100%;
+            height:100dvh;
+            background-color: rgba(255, 255, 255, 0.95);
+            display: block;
+            overflow-y:auto;
+            -webkit-overflow-scrolling:touch;
+            overflow: auto;
+            text-align: center;
+            padding-top: 20px;
+            font-family: Arial, sans-serif;
+            display:flex;
+            flex-direction:column;
+        }
+        #disclaimerContent {
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 10px;
+            max-width: 800px;
+            max-height:calc(100vh - 200px);
+            overflow-y:auto;
+            -webkit-overflow-scrolling:touch;
+            text-align: left;
+            flex:1 1 auto;
+            
+        }
+        #acceptButton {
+            margin-top: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            align-self:center;
+            position:sticky;
+            bottom:0;
+            background:#4CAF50; color:#fff; border:none; border-radius:2px;
+            padding:5px 5px; font-size:14px; cursor:pointer;
+            margin:px 0;
+
+        }
+        .footer {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: #f1f1f1;
+            color: #555;
+            text-align: center;
+            padding: 5px 0;
+            font-size: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 10000;
+
+            /* position:static;
+            width:100%;
+            box-shadow:none;
+            z-index:auto; 
+            padding:0px 0;
+            text-align: center;
+            z-index: 10000;
+            font-size: 10px; */
+
+        }
+        .footer a {
+            color: #555;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        #loadStatus {
+            margin-bottom: 5px;
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .control-panel{
+        padding:5px 5px;      /* was 15px all around */
+        }
+
+        .control-panel h3      { display:flex; align-items:center; cursor:pointer; }
+
+        .toggle-arrow          { margin-left:0px; transition:transform .25s ease; }
+
+        .control-panel.collapsed .toggle-arrow { transform:rotate(-90deg); }
+
+        .panel-body                     { margin-top:5px; }
+
+        .control-panel.collapsed .panel-body { display:none; }
+
+        .control-panel.collapsed        { opacity:.4; }   /* optional fade */
+
+        /* 2‑B. Mobile-friendly sizing */
+        @media (max-width:600px){
+        .control-panel{
+            left:auto; right:5px; transform:none;
+            width:auto; max-width:none; padding:5px 5px;
+        }
+        #dateSelector,#offenseType,#customRange{ font-size:12px; padding:5px; }
+        #applyFilters,#exportCSV{ font-size:12px; padding:5px; }
+        .control-panel h3{ font-size:12px; }
+        }
+
+        /* Keep Leaflet controls (zoom +/- and layer‑toggle) always on top */
+        .leaflet-control-zoom,
+        .leaflet-control-layers {
+        position: relative;          /* preserves Leaflet’s corner anchoring   */
+        z-index: 30000 !important;    /* > control‑panel’s 1000, < footer 10000 */
+        }
+        .control-panel{
+        max-width:33vw;   /* ≤ 25 % of viewport width            */
+        max-height:50vh;  /* ≤ 25 % of viewport height           */
+        overflow-y:auto;  /* allow scrolling inside if it overflows */
+        }
+
+        /* 2‑A.  Header layout */
+        .panel-header{
+        display:flex; align-items:center; gap:6px;
+        }
+
+        /* 2‑B.  Toggle button */
+        .panel-toggle{
+        background:none; border:none; font-size:14px; font-weight:bold;
+        cursor:pointer; color:#007bff; padding:0; line-height:1;
+        }
+
+        /* simple arrow caret that flips */
+        .panel-toggle::after{
+        content:""; display:inline-block; margin-left:2px;
+        border:solid currentColor; border-width:0 2px 2px 0; padding:3px;
+        transform:rotate(45deg); transition:transform .25s ease;
+        }
+        .panel-toggle[aria-expanded="false"]::after{ transform:rotate(-135deg); }
+
+        /* --- Advanced Search styles --- */
+        .advanced-controls {
+        margin-top: 6px;
+        border-top: 1px dashed #ddd;
+        padding-top: 6px;
+        }
+
+        .advanced-toggle {
+        width: 100%;
+        padding: 8px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        text-align: left;
+        }
+
+        .advanced-toggle:hover {
+        background: #eee;
+        }
+
+        .advanced-section {
+        margin-top: 6px;
+        display: none;
+        background: #fafafa;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        padding: 8px;
+        }
+
+        .advanced-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        }
+
+        .advanced-row .field-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: center;
+        font-size: 12px;
+        }
+
+        #searchText {
+        width: 100%;
+        padding: 6px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 12px;
+        }
+
+        .adv-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+        }
+
+        .adv-actions button {
+        flex: 1 1 auto;
+        padding: 8px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        }
+
+        #applySearch { background: #6c63ff; color: #fff; }
+        #clearSearch { background: #e0e0e0; color: #333; }
+        #applySearch:hover, #clearSearch:hover { filter: brightness(0.95); }
+        #searchStatus { margin-top: 4px; font-size: 11px; color: #666; }
+
+    </style>
+</head>
+<body>
+    <!-- Disclaimer Overlay -->
+    <div id="disclaimerOverlay">
+        <div id="disclaimerContent">
+            <h2>Important Legal Disclaimer</h2>
+            <p><strong>By using this demonstrative research tool, you acknowledge and agree:</strong></p>
+            <ul>
+                <li>This tool is for <strong>demonstration purposes only</strong>.</li>
+                <li>The data originated from publicly available Oak Park Police Department PDF files.
+                    View the official site here: 
+                    <a href="https://www.oak-park.us/Public-Safety/Police-Department"
+                      target="_blank">Oak Park Police Department</a>.</li>
+                <li>During parsing, a portion of complaints were <strong>omitted</strong> 
+                    due to parsing issues; thus the data is <strong>incomplete</strong>.</li>
+                <li>The <strong>official</strong> and <strong>complete</strong> PDF files remain 
+                    with the Oak Park Police Department.</li>
+                <li>You <strong>will not hold</strong> the author <strong>liable</strong> for <strong>any</strong> 
+                    decisions—formal or informal—based on this tool.</li>
+                <li>This tool <strong>should not</strong> be used in <strong>any</strong> official or unofficial 
+                    <strong>decision-making</strong>.</li>
+            </ul>
+            <p><strong>By continuing, you indicate your acceptance of these terms 
+              and disclaim all liability.</strong></p>
+            <hr/>
+            <button id="acceptButton">I Accept</button>
+        </div>
+    </div>
+
+    <!-- Loading Container -->
+    <div id="loading" class="loading">
+        <h3>Loading DuckDB and Crime Data</h3>
+        <p>Please wait while we initialize the database...</p>
+        <div id="loadStatus"></div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Control Panel (accordion‑ready, mobile‑friendly) -->
+<div class="control-panel" id="controlPanel">
+
+  <!-- clickable header -->
+  <div class="panel-header" id="panelHeader">
+  <button id="panelToggle" class="panel-toggle" aria-expanded="true">
+    HIDE ▾
+  </button>
+  <span class="panel-title">Oak&nbsp;Park&nbsp;Crime&nbsp;Map</span>
+    </div>
+
+  <!-- everything collapses inside this body -->
+  <div class="panel-body">
+
+    <!-- time period selector -->
+    <div class="time-selector">
+      <label class="label" for="dateSelector">Time&nbsp;Period:</label>
+      <select id="dateSelector">
+        <option value="last7">Last&nbsp;7&nbsp;Days</option>
+        <option value="last14">Last&nbsp;14&nbsp;Days</option>
+        <option value="last30">Last&nbsp;30&nbsp;Days</option>
+        <option value="last90">Last&nbsp;90&nbsp;Days</option>
+        <option value="thisYear">This&nbsp;Year</option>
+        <option value="lastYear">Last&nbsp;Year</option>
+        <option value="2025">Year&nbsp;2025</option>
+        <option value="2024">Year&nbsp;2024</option>
+        <option value="2023">Year&nbsp;2023</option>
+        <option value="2022">Year&nbsp;2022</option>
+        <option value="2021">Year&nbsp;2021</option>
+        <option value="2020">Year&nbsp;2020</option>
+        <option value="2019">Year&nbsp;2019</option>
+        <option value="2018">Year&nbsp;2018</option>
+        <option value="2017">Year&nbsp;2017</option>
+        <option value="all">All&nbsp;Time</option>
+        <option value="custom">Custom&nbsp;Range</option>
+      </select>
+    </div>
+
+    <!-- custom date‑range picker, toggled via JS -->
+    <div id="customRangeDiv" class="date-range">
+      <input type="text" id="customRange" placeholder="Select date range">
+    </div>
+
+    <!-- offense filter -->
+    <div class="offense-selector">
+      <label class="label" for="offenseType">Filter&nbsp;by&nbsp;Offense:</label>
+      <select id="offenseType">
+        <option value="all">Loading offenses…</option>
+      </select>
+    </div>
+
+    <!-- action buttons -->
+    <button id="applyFilters">Apply&nbsp;Filters</button>
+    <button id="exportCSV" disabled>Export&nbsp;Current&nbsp;View&nbsp;to&nbsp;CSV</button>
+
+    <div class="advanced-controls">
+        <button id="advancedToggle" class="advanced-toggle" aria-expanded="false">Advanced Search ▾</button>
+        <div id="advancedSection" class="advanced-section" style="display:none;">
+            <div class="advanced-row">
+            <label class="label" for="searchText">Search descriptions (narrative by default)</label>
+            <input id="searchText" type="text" placeholder="e.g., gun, bicycle, window break">
+            <div class="field-group">
+                <span><strong>Match:</strong></span>
+                <select id="searchMode">
+                <option value="any" selected>Any word</option>
+                <option value="all">All words</option>
+                <option value="exact">Exact phrase</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <span><strong>Fields:</strong></span>
+                <label><input type="checkbox" id="fieldOffense"> Offense</label>
+                <label><input type="checkbox" id="fieldNarrative" checked> Narrative</label>
+                <label><input type="checkbox" id="fieldLocation"> Location</label>
+                <label><input type="checkbox" id="fieldVictim"> Victim</label>
+            </div>
+            <div class="adv-actions">
+                <button id="applySearch">Apply Search</button>
+                <button id="clearSearch">Clear</button>
+            </div>
+            <div id="searchStatus">No search active.</div>
+            </div>
+        </div>
+        </div>
+
+    <!-- dynamic stats -->
+    <div id="stats">
+      <p><strong>Results:</strong> <span id="crimeCount">0</span> crimes</p>
+    </div>
+
+  </div><!-- /.panel-body -->
+</div><!-- /.control-panel -->
+
+
+    <!-- Footer -->
+    <div class="footer">
+        <div>
+            <a href="https://jesse-anderson.net/">My Portfolio</a> |
+            <a href="https://blog.jesse-anderson.net/">My Blog</a> |
+            <a href="https://blog.jesse-anderson.net/posts/OP-Crime-Documentation/">Documentation</a> |
+            <a href="mailto:jesse@jesse-anderson.net">Contact</a> |
+            <a href="https://forms.gle/GnyaVwo1Vzm8nBH6A">Add me to Weekly Updates</a>
+        </div>
+        <div>Copyright &copy; <span id="currentYear"></span> Jesse Anderson. All rights reserved.</div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Leaflet and Plugins -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- jQuery, Moment and Date Range Picker -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
+    <!-- Main application script as a module -->
+    <script type="module">
+        // Import DuckDB ES module
+        import * as duckdb from './js/duckdb/duckdb-browser.mjs';
+
+        // Constants
+        const OAK_PARK_VILLAGE_HALL_LAT = 41.87984134058715;
+        const OAK_PARK_VILLAGE_HALL_LNG = -87.7789930902372;
+        
+        // Global variables
+        let db;
+        let map;
+        let markerClusterGroup;
+        let heatmapLayer;
+        let markers = [];
+        let heatmapData = [];
+        let offenseTypes = new Set();
+        let currentCrimeData = []; // Store current filtered results for export
+        let layerControl; // Keep track of layer control to avoid duplicates
+        let pendingHashState = null;
+
+        // Initialize everything once the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set current year in footer
+            document.getElementById('currentYear').textContent = new Date().getFullYear();
+            
+            // Initialize date range picker
+            $('#customRange').daterangepicker({
+                opens: 'left',
+                maxDate: new Date(),
+                locale: {
+                    format: 'YYYY-MM-DD'
+                }
+            });
+            
+            // Show custom range if selected and trigger offense update
+            document.getElementById('dateSelector').addEventListener('change', function() {
+                const customRangeDiv = document.getElementById('customRangeDiv');
+                if (this.value === 'custom') {
+                    customRangeDiv.style.display = 'block';
+                } else {
+                    customRangeDiv.style.display = 'none';
+                }
+                
+                // Update offense dropdown when time period changes
+                updateOffenseDropdownForTimePeriod();
+            });
+            
+            // Disclaimer button
+            document.getElementById('acceptButton').addEventListener('click', function() {
+                document.getElementById('disclaimerOverlay').style.display = 'none';
+            });
+            
+            // Export CSV button
+            document.getElementById('exportCSV').addEventListener('click', exportCurrentViewToCSV);
+            //////////////////////////////
+            // --- Advanced Search handlers ---
+            const advToggle = document.getElementById('advancedToggle');
+            const advSection = document.getElementById('advancedSection');
+            const applySearchBtn = document.getElementById('applySearch');
+            const clearSearchBtn = document.getElementById('clearSearch');
+            const searchInput = document.getElementById('searchText');
+            const searchStatus = document.getElementById('searchStatus');
+
+            advToggle.addEventListener('click', () => {
+            const isOpen = advSection.style.display === 'block';
+            advSection.style.display = isOpen ? 'none' : 'block';
+            advToggle.setAttribute('aria-expanded', String(!isOpen));
+            advToggle.textContent = isOpen ? 'Advanced Search ▾' : 'Advanced Search ▴';
+            });
+            applySearchBtn.addEventListener('click', () => {
+            applyFilters();
+            });
+            clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            document.getElementById('searchMode').value = 'any';
+            document.getElementById('fieldOffense').checked = true;
+            document.getElementById('fieldNarrative').checked = true;
+            document.getElementById('fieldLocation').checked = false;
+            document.getElementById('fieldVictim').checked = false;
+            searchStatus.textContent = 'No search active.';
+            applyFilters();
+            });
+            searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyFilters();
+            }
+            });
+            ///////////////////////////////////////
+
+            /*Accordion click handler */
+            const panel       = document.getElementById('controlPanel');
+            const panelToggle = document.getElementById('panelToggle');
+
+            panelToggle.addEventListener('click', (e)=>{
+            e.stopPropagation();                    // keep click from bubbling
+            panel.classList.toggle('collapsed');
+
+            const expanded = !panel.classList.contains('collapsed');
+            panelToggle.setAttribute('aria-expanded', expanded);
+            panelToggle.textContent = expanded ? 'HIDE ' : 'SHOW ';
+            });
+            
+            // DOMContentLoaded: read hash -> set UI (except offense, which waits for dropdown)
+            {
+            const stateFromHash = hashToState();
+            if (stateFromHash) {
+                applyStateToUI(stateFromHash);
+                pendingHashState = stateFromHash; // offense applied later after dropdown populates
+            }
+            }
+
+            // Initialize DuckDB
+            initializeDuckDB();
+
+
+        });
+        
+
+
+// --- URL hash state helpers ---
+// State shape: { date, customRange, offense, searchText, searchMode, fields: {offense,narrative,location,victim} }
+
+function getUIState() {
+  return {
+    date: document.getElementById('dateSelector')?.value || 'last14',
+    customRange: document.getElementById('customRange')?.value || '',
+    offense: document.getElementById('offenseType')?.value || 'all',
+    searchText: document.getElementById('searchText')?.value || '',
+    searchMode: document.getElementById('searchMode')?.value || 'any',
+    fields: {
+      offense: !!document.getElementById('fieldOffense')?.checked,
+      narrative: !!document.getElementById('fieldNarrative')?.checked,
+      location: !!document.getElementById('fieldLocation')?.checked,
+      victim: !!document.getElementById('fieldVictim')?.checked,
+    }
+  };
+}
+
+function applyStateToUI(state) {
+  if (!state) return;
+  if (state.date) document.getElementById('dateSelector').value = state.date;
+  // Toggle custom range visibility when needed
+  const customRangeDiv = document.getElementById('customRangeDiv');
+  customRangeDiv.style.display = (state.date === 'custom') ? 'block' : 'none';
+  if (state.customRange && state.date === 'custom') {
+    document.getElementById('customRange').value = state.customRange;
+  }
+
+  if (state.searchText !== undefined) document.getElementById('searchText').value = state.searchText;
+  if (state.searchMode) document.getElementById('searchMode').value = state.searchMode;
+
+  if (state.fields) {
+    document.getElementById('fieldOffense').checked   = !!state.fields.offense;
+    document.getElementById('fieldNarrative').checked = !!state.fields.narrative;
+    document.getElementById('fieldLocation').checked  = !!state.fields.location;
+    document.getElementById('fieldVictim').checked    = !!state.fields.victim;
+  }
+  // offense is applied later (after dropdown is populated for selected time period)
+}
+
+function stateToHash(state) {
+  const params = new URLSearchParams();
+  if (state.date) params.set('date', state.date);
+  if (state.customRange) params.set('range', state.customRange);
+  if (state.offense && state.offense !== 'all') params.set('offense', state.offense);
+  if (state.searchText) params.set('q', state.searchText);
+  if (state.searchMode && state.searchMode !== 'any') params.set('mode', state.searchMode);
+
+  // fields bitmask for compactness: o n l v (1/0)
+  const f = state.fields || {};
+  const mask = [
+    f.offense ? '1' : '0',
+    f.narrative ? '1' : '0',
+    f.location ? '1' : '0',
+    f.victim ? '1' : '0'
+  ].join('');
+  if (mask !== '1100') params.set('f', mask); // default 1100 = offense+narrative
+
+  return '#' + params.toString();
+}
+
+function hashToState() {
+  const hash = window.location.hash?.replace(/^#/, '') || '';
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const fmask = (params.get('f') || '1100').padEnd(4, '0').slice(0,4);
+  return {
+    date: params.get('date') || 'last14',
+    customRange: params.get('range') || '',
+    offense: params.get('offense') || 'all',
+    searchText: params.get('q') || '',
+    searchMode: params.get('mode') || 'any',
+    fields: {
+      offense: fmask[0] === '1',
+      narrative: fmask[1] === '1',
+      location: fmask[2] === '1',
+      victim: fmask[3] === '1'
+    }
+  };
+}
+
+function updateHashFromUI() {
+  const state = getUIState();
+  const newHash = stateToHash(state);
+  if (window.location.hash !== newHash) {
+    history.replaceState(null, '', newHash);
+  }
+}
+
+async function initializeDuckDB() {
+    const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.INFO);
+    let db_instance;
+    let worker;
+
+    // --- Configuration ---
+    // Ensure your Worker proxy is working and this URL is correct.
+    const R2_PROXY_BASE_URL = "https://wasm-proxy.jesse200755.workers.dev/"; 
+
+    const VSCODE_LIVE_PREVIEW_URL_PREFIX = "http://127.0.0.1:3004/c:/Users/Jesse/Documents/GitHub/jesse-anderson.github.io/OP-Crime-Maps/js/duckdb/";
+    
+    // Path from the origin for GitHub Pages / standard web servers
+    // e.g. https://jesse-anderson.github.io/OP-Crime-Maps/js/duckdb/
+    const STANDARD_WEB_ASSET_PATH_PREFIX = "/OP-Crime-Maps/js/duckdb/"; 
+
+    const CDN_DUCKDB_VERSION = '1.29.0';
+    const WASM_FILE_NAME = 'duckdb-eh.wasm';
+    const WORKER_FILE_NAME = 'duckdb-browser-eh.worker.js';
+
+    let chosenWasmPath, chosenWorkerPath;
+    let currentAttemptSource = "";
+
+    const hostname = window.location.hostname;
+    const origin = window.location.origin;
+
+    console.log(`[DB Init] Detected hostname: ${hostname}, origin: ${origin}`);
+    updateLoadStatus("Initializing DuckDB - Please wait...");
+
+    async function tryInstantiate(wasmUrl, workerUrl, sourceName) {
+        console.log(`[DB Init] Attempting to load from ${sourceName}`);
+        console.log(`[DB Init]   WASM Path: ${wasmUrl}`);
+        console.log(`[DB Init]   Worker Path: ${workerUrl}`);
+        updateLoadStatus(`Loading DuckDB from ${sourceName}...`);
+
+        if (worker) { worker.terminate(); worker = undefined; }
+
+        const workerBlob = new Blob([`importScripts("${workerUrl}");`], { type: 'application/javascript' });
+        worker = new Worker(URL.createObjectURL(workerBlob));
+        db_instance = new duckdb.AsyncDuckDB(logger, worker);
+        await db_instance.instantiate(wasmUrl); // This is where the WASM magic word error or importScripts error can happen
+        console.log(`[DB Init] Successfully initiated DuckDB from ${sourceName}.`);
+        currentAttemptSource = sourceName;
+    }
+
+    // --- Loading Strategy ---
+
+    // 1. VS Code Live Preview Special Case
+    if ((hostname === "127.0.0.1" || hostname === "localhost") && window.location.href.startsWith(origin + "/c:/Users/Jesse/")) {
+        currentAttemptSource = "Local (VS Code Live Preview)";
+        try {
+            chosenWasmPath = `${VSCODE_LIVE_PREVIEW_URL_PREFIX}${WASM_FILE_NAME}`;
+            chosenWorkerPath = `${VSCODE_LIVE_PREVIEW_URL_PREFIX}${WORKER_FILE_NAME}`;
+            await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
+        } catch (localErrorVSCode) {
+            console.error(`[DB Init] Failed to load from ${currentAttemptSource}:`, localErrorVSCode);
+            db_instance = null; 
+        }
+    }
+
+    // 2. GitHub Pages or Standard Web Server (relative paths from origin)
+    // Also acts as a fallback for 127.0.0.1 if the VSCode special path isn't met or fails.
+    if (!db_instance && (hostname === "jesse-anderson.github.io" || hostname === "jesse-anderson.net" || hostname === "127.0.0.1" || hostname === "localhost")) {
+        currentAttemptSource = `Local/GitHub Pages (${hostname})`;
+        try {
+            // Construct path like https://jesse-anderson.net/OP-Crime-Maps/js/duckdb/file.wasm
+            chosenWasmPath = `${origin}${STANDARD_WEB_ASSET_PATH_PREFIX}${WASM_FILE_NAME}`.replace(/([^:])\/\/\//g, '$1/').replace(/([^:])\/\//g, '$1/');
+            chosenWorkerPath = `${origin}${STANDARD_WEB_ASSET_PATH_PREFIX}${WORKER_FILE_NAME}`.replace(/([^:])\/\/\//g, '$1/').replace(/([^:])\/\//g, '$1/');
+            await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
+        } catch (ghPagesOrLocalError) {
+            console.error(`[DB Init] Failed to load from ${currentAttemptSource}:`, ghPagesOrLocalError);
+            db_instance = null;
+        }
+    }
+    
+    // 3. R2 via Worker Proxy (Specifically for Cloudflare Pages domains if other attempts failed or weren't applicable)
+    if (!db_instance && (hostname.endsWith(".pages.dev") || hostname === "jesse-anderson.net")) {
+        // This ensures that if jesse-anderson.net was GitHub Pages and failed, it doesn't try R2.
+        // But if jesse-anderson.net is Cloudflare Pages, the above local attempt *should* fail (404), then this R2 path is tried.
+        // For *.pages.dev, the local attempt will also fail (404), then this is tried.
+        currentAttemptSource = "R2 (via Worker Proxy)";
+        try {
+            chosenWasmPath = R2_PROXY_BASE_URL + WASM_FILE_NAME;
+            chosenWorkerPath = R2_PROXY_BASE_URL + WORKER_FILE_NAME;
+            await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
+        } catch (r2ProxyError) {
+            console.error(`[DB Init] Failed to load from ${currentAttemptSource}:`, r2ProxyError);
+            db_instance = null;
+        }
+    }
+
+    // 4. Final CDN Fallback
+    if (!db_instance) {
+        console.warn(`[DB Init] All configured attempts failed for hostname '${hostname}'. Falling back to CDN.`);
+        currentAttemptSource = "CDN";
+        // The updateLoadStatus was inside the catch before, moving it before the try
+        updateLoadStatus(`All primary loads failed. Trying CDN...`);
+        try {
+            const cdnDistPath = `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${CDN_DUCKDB_VERSION}/dist/`;
+            chosenWasmPath = cdnDistPath + WASM_FILE_NAME;
+            chosenWorkerPath = cdnDistPath + WORKER_FILE_NAME;
+            await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
+        } catch (cdnError) {
+            console.error(`[DB Init] Critical: Failed to load DuckDB from all sources:`, cdnError);
+            updateLoadStatus(`ERROR: Failed to initialize DuckDB. ${cdnError.message}`);
+            alert("A critical error occurred while loading DuckDB. Please try refreshing the page.");
+            if (worker) worker.terminate(); // Ensure worker is terminated on final failure
+            throw cdnError; 
+        }
+    }
+
+    // Patch leaflet-heat to request a Canvas2D context with willReadFrequently for better getImageData perf
+    (function patchLeafletHeatWillReadFrequently() {
+    if (!window.L || !L.HeatLayer) return;
+
+    const origOnAdd = L.HeatLayer.prototype.onAdd;
+    L.HeatLayer.prototype.onAdd = function (map) {
+        origOnAdd.call(this, map);
+        try {
+        if (this._canvas && this._canvas.getContext) {
+            const ctx = this._canvas.getContext('2d', { willReadFrequently: true });
+            if (ctx && this._heat) {
+            this._heat._ctx = ctx; // swap simpleheat context
+            }
+        }
+        } catch (e) {
+        // safe to ignore if upstream changes
+        console.debug('leaflet-heat willReadFrequently patch skipped:', e);
+        }
+    };
+    })();
+
+    // --- Database Loading and Application Initialization ---
+    updateLoadStatus(`DuckDB instantiated from ${currentAttemptSource}, fetching database file...`);
+    try {
+        const dbFilePath = 'db/crime_data.duckdb'; 
+        console.log(`[DB Init] Fetching database file from (relative to HTML): ${dbFilePath}`);
+        const response = await fetch(dbFilePath); 
+        if (!response.ok) throw new Error(`Failed to fetch database: ${response.status} ${response.statusText} from ${response.url}`);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        updateLoadStatus("Database file downloaded, registering with DuckDB...");
+        db = await db_instance.connect(); 
+        await db_instance.registerFileBuffer('crime_data.duckdb', new Uint8Array(arrayBuffer));
+        await db.query(`ATTACH 'crime_data.duckdb' AS attached_crimedb (READ_ONLY)`); 
+        await db.query(`USE attached_crimedb`); 
+
+        console.log("[DB Init] Database file registered and attached as 'attached_crimedb'. Used 'USE attached_crimedb'.");
+        
+        const tableCheckResult = await db.query(`SELECT COUNT(*) as count FROM crimes`);
+        const countValue = tableCheckResult.toArray()[0].count; 
+        console.log("[DB Init] Crimes table count:", typeof countValue === 'bigint' ? countValue.toString() : countValue);
+
+        updateLoadStatus("Database loaded, initializing map controls...");
+        initializeMap(); 
+        await loadMetadata(); 
+        await populateInitialOffenseDropdown(); 
+        
+        document.getElementById('dateSelector').value = 'last14';
+        console.log("[DB Init] Default dateSelector set to 'last14'.");
+        
+        await updateOffenseDropdownForTimePeriod(); 
+        
+        // If a hash specified an offense, try to select it (if present for this time window)
+        if (pendingHashState?.offense) {
+        const dd = document.getElementById('offenseType');
+        const wanted = pendingHashState.offense;
+        if ([...dd.options].some(o => o.value === wanted)) {
+            dd.value = wanted;
+        } else {
+            dd.value = 'all';
+        }
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        const applyFiltersButton = document.getElementById('applyFilters');
+        if (applyFiltersButton) {
+            applyFiltersButton.click();
+        } else {
+            console.error("[DB Init] Apply Filters button not found.");
+        }
+        console.log("[DB Init] Initialization complete.");
+
+    } catch (dbLoadError) {
+        console.error("[DB Init] Error loading or attaching database file:", dbLoadError);
+        updateLoadStatus(`ERROR: Could not load crime data. ${dbLoadError.message}`);
+        alert("Error loading the crime data. The map may not function correctly.");
+        if (worker) worker.terminate(); 
+    }
+}
+
+
+
+
+        function updateLoadStatus(message) {
+            document.getElementById('loadStatus').textContent = message;
+            console.log(message);
+        }
+        
+        async function loadMetadata() {
+            try {
+                const response = await fetch('db/metadata.json');
+                const metadata = await response.json();
+                // Note: Removed the lastUpdated display as requested
+            } catch (error) {
+                console.error("Error loading metadata:", error);
+            }
+        }
+        
+        async function populateInitialOffenseDropdown() {
+            try {
+                // Initial population with all offenses
+                const result = await db.query(`
+                    SELECT DISTINCT offense
+                    FROM crimes
+                    WHERE offense IS NOT NULL
+                    ORDER BY offense
+                `);
+                
+                const dropdown = document.getElementById('offenseType');
+                
+                // Clear existing options
+                dropdown.innerHTML = '<option value="all">All Offenses</option>';
+                
+                // Add new options
+                for (const row of result.toArray()) {
+                    if (row.offense) {
+                        const option = document.createElement('option');
+                        option.value = row.offense;
+                        option.textContent = row.offense;
+                        dropdown.appendChild(option);
+                    }
+                }
+            } catch (error) {
+                console.error("Error populating initial offense dropdown:", error);
+            }
+        }
+        
+        // Function to build date conditions based on time selector
+        // This centralized function ensures consistent date logic across all queries
+        function buildDateConditions(timeSelector) {
+            const now = new Date();
+            let startDate, endDate;
+            const conditions = [];
+            
+            // Handle each time period option with careful date calculation
+            switch (timeSelector) {
+                case 'last7':
+                    startDate = new Date(now);
+                    startDate.setDate(now.getDate() - 7);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${now.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'last14':
+                    startDate = new Date(now);
+                    startDate.setDate(now.getDate() - 14);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${now.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'last30':
+                    startDate = new Date(now);
+                    startDate.setDate(now.getDate() - 30);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${now.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'last90':
+                    startDate = new Date(now);
+                    startDate.setDate(now.getDate() - 90);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${now.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'thisYear':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${now.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'lastYear':
+                    startDate = new Date(now.getFullYear() - 1, 0, 1);
+                    endDate = new Date(now.getFullYear() - 1, 11, 31);
+                    conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                    conditions.push(`date <= '${endDate.toISOString().split('T')[0]}'`);
+                    break;
+                    
+                case 'custom':
+                    const customRange = document.getElementById('customRange').value;
+                    const dates = customRange.split(' - ');
+                    if (dates.length === 2) {
+                        conditions.push(`date >= '${dates[0]}'`);
+                        conditions.push(`date <= '${dates[1]}'`);
+                    }
+                    break;
+                    
+                case 'all':
+                    // No date conditions for "All Time" - this is the key fix
+                    break;
+                    
+                default:
+                    // Handle specific year selections (2025, 2024, etc.)
+                    if (/^\d{4}$/.test(timeSelector)) {
+                        const year = parseInt(timeSelector);
+                        startDate = new Date(year, 0, 1);  // January 1st of the year
+                        endDate = new Date(year, 11, 31);  // December 31st of the year
+                        conditions.push(`date >= '${startDate.toISOString().split('T')[0]}'`);
+                        conditions.push(`date <= '${endDate.toISOString().split('T')[0]}'`);
+                    }
+                    break;
+            }
+            
+            return conditions;
+        }
+        
+        // Build search conditions for SQL WHERE from advanced search UI
+        function buildSearchConditions() {
+        const termRaw = (document.getElementById('searchText')?.value || '').trim();
+        const mode = document.getElementById('searchMode')?.value || 'any';
+        const fields = [];
+        if (document.getElementById('fieldOffense')?.checked) fields.push('offense');
+        if (document.getElementById('fieldNarrative')?.checked) fields.push('narrative');
+        if (document.getElementById('fieldLocation')?.checked) fields.push('location');
+        if (document.getElementById('fieldVictim')?.checked) fields.push('victim');
+
+        const searchStatus = document.getElementById('searchStatus');
+        if (!termRaw || fields.length === 0) {
+            if (searchStatus) searchStatus.textContent = 'No search active.';
+            return [];
+        }
+
+        const fieldsLabel = fields.join(', ');
+        if (searchStatus) searchStatus.textContent = `Searching "${termRaw}" in: ${fieldsLabel} (${mode})`;
+
+        // Escape single quotes for SQL safety
+        const sanitize = (s) => s.replace(/'/g, "''");
+
+        let conditions = [];
+        if (mode === 'exact') {
+            const phrase = sanitize(termRaw.toLowerCase());
+            const fieldConds = fields.map(f => `LOWER(${f}) LIKE '%${phrase}%'`);
+            conditions.push(`(${fieldConds.join(' OR ')})`);
+            return conditions;
+        }
+
+        // Tokenize on whitespace for any/all
+        const tokens = termRaw.split(/\s+/).map(t => sanitize(t.toLowerCase())).filter(Boolean);
+        if (tokens.length === 0) return [];
+
+        // Build one OR-group per token (across selected fields), then join groups by mode
+        const tokenGroups = tokens.map(t => {
+            const likeParts = fields.map(f => `LOWER(${f}) LIKE '%${t}%'`);
+            return `(${likeParts.join(' OR ')})`;
+        });
+
+        if (mode === 'all') {
+            conditions.push(`(${tokenGroups.join(' AND ')})`);
+        } else {
+            conditions.push(`(${tokenGroups.join(' OR ')})`); // 'any'
+        }
+        return conditions;
+        }
+        // FIXED: Function to update offense dropdown based on selected time period
+        // This addresses the SQL syntax error by properly building WHERE clauses
+        async function updateOffenseDropdownForTimePeriod() {
+            try {
+                const timeSelector = document.getElementById('dateSelector').value;
+                
+                // Use our centralized date condition builder
+                const dateConditions = buildDateConditions(timeSelector);
+                
+                // Build the complete WHERE clause properly
+                // The key insight: we always need to filter for non-null offenses,
+                // but we only add date conditions if they exist
+                let allConditions = ['offense IS NOT NULL'];
+                
+                // Add date conditions to our base condition
+                allConditions = allConditions.concat(dateConditions);
+                
+                // Build the final WHERE clause - this ensures we always have valid SQL
+                const whereClause = `WHERE ${allConditions.join(' AND ')}`;
+                
+                // Query for offenses in the selected time period
+                const query = `
+                    SELECT DISTINCT offense, COUNT(*) as offense_count
+                    FROM crimes
+                    ${whereClause}
+                    GROUP BY offense
+                    ORDER BY offense_count DESC, offense
+                `;
+                
+                console.log("Offense dropdown query:", query); // Helpful for debugging
+                
+                const result = await db.query(query);
+                const dropdown = document.getElementById('offenseType');
+                const currentSelection = dropdown.value;
+                
+                // Clear and rebuild dropdown
+                dropdown.innerHTML = '<option value="all">All Offenses</option>';
+                
+                let hasCurrentSelection = false;
+                for (const row of result.toArray()) {
+                    if (row.offense) {
+                        const option = document.createElement('option');
+                        option.value = row.offense;
+                        option.textContent = `${row.offense} (${row.offense_count})`;
+                        dropdown.appendChild(option);
+                        
+                        if (row.offense === currentSelection) {
+                            hasCurrentSelection = true;
+                        }
+                    }
+                }
+                
+                // Restore selection if it exists in the new time period
+                if (hasCurrentSelection) {
+                    dropdown.value = currentSelection;
+                } else {
+                    dropdown.value = 'all';
+                }
+                
+                console.log(`Updated offense dropdown for ${timeSelector}: ${result.toArray().length} offense types available`);
+                
+            } catch (error) {
+                console.error("Error updating offense dropdown for time period:", error);
+                // Fall back to all offenses if there's an error
+                await populateInitialOffenseDropdown();
+            }
+        }
+        
+        function initializeMap() {
+            // Create map centered on Oak Park
+            map = L.map('map').setView([OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG], 13);
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Initialize apply filters button
+            document.getElementById('applyFilters').addEventListener('click', applyFilters);
+        }
+        
+        async function applyFilters() {
+            // Start timing the entire operation
+            const operationStartTime = performance.now();
+            
+            clearMap();
+            updateLoadStatus("Applying filters...");
+            
+            const timeSelector = document.getElementById('dateSelector').value;
+            const offenseType = document.getElementById('offenseType').value;
+            
+            // Keep the URL hash in sync with current UI
+            updateHashFromUI(); 
+
+            // Use our centralized date condition builder for consistency
+            const dateConditions = buildDateConditions(timeSelector);
+            let allConditions = [];
+            
+            // Add date conditions if they exist
+            allConditions = allConditions.concat(dateConditions);
+            
+            // Add offense filter if needed
+            if (offenseType !== 'all') {
+                // Escape single quotes in offense type for SQL safety
+                const escapedOffense = offenseType.replace(/'/g, "''");
+                allConditions.push(`offense = '${escapedOffense}'`);
+            }
+            
+            // NEW[8.10.25]: add advanced search conditions
+            const searchConds = buildSearchConditions();
+            allConditions = allConditions.concat(searchConds);
+
+            // Build the final WHERE clause only if we have conditions
+            const whereClause = allConditions.length > 0 ? `WHERE ${allConditions.join(' AND ')}` : '';
+            
+            // Execute the query with timing
+            try {
+                updateLoadStatus("Querying database...");
+                
+                // Start timing just the database query
+                const queryStartTime = performance.now();
+                
+                // Build the complete query
+                const query = `
+                    SELECT 
+                        date_str, complaint_num, offense, time, location, victim, 
+                        narrative, file_name, lat, long
+                    FROM crimes
+                    ${whereClause}
+                    ORDER BY date DESC
+                `;
+                
+                console.log("Executing query:", query); // For debugging
+                
+                const result = await db.query(query);
+                const crimes = result.toArray();
+                
+                // Calculate and log query timing
+                const queryEndTime = performance.now();
+                const queryTime = queryEndTime - queryStartTime;
+                
+                // Store current data for export functionality
+                currentCrimeData = crimes;
+                
+                // Log performance information to console
+                console.log(`   Query Performance Report:`);
+                console.log(`   Query time: ${queryTime.toFixed(2)}ms`);
+                console.log(`   Records returned: ${crimes.length.toLocaleString()}`);
+                console.log(`   Query throughput: ${(crimes.length / (queryTime / 1000)).toFixed(0)} records/second`);
+                console.log(`   Time period: ${timeSelector}`);
+                console.log(`   Offense filter: ${offenseType}`);
+                
+                updateLoadStatus(`Loading ${crimes.length} records on map...`);
+                document.getElementById('crimeCount').textContent = crimes.length.toLocaleString();
+                
+                if (crimes.length > 0) {
+                    addCrimesToMap(crimes);
+                    updateLoadStatus("Map updated successfully.");
+                    
+                    // Enable export button
+                    document.getElementById('exportCSV').disabled = false;
+                } else {
+                    updateLoadStatus("No crimes found for the selected filters.");
+                    // Disable export button when no data
+                    document.getElementById('exportCSV').disabled = true;
+                }
+                
+                // Calculate total operation time
+                const operationEndTime = performance.now();
+                const totalOperationTime = operationEndTime - operationStartTime;
+                
+                console.log(`   Total operation time: ${totalOperationTime.toFixed(2)}ms`);
+                console.log(`   Map rendering time: ${(totalOperationTime - queryTime).toFixed(2)}ms`);
+                
+            } catch (error) {
+                console.error("Error applying filters:", error);
+                updateLoadStatus(`Error: ${error.message}`);
+                alert("Error querying the database. Please try again.");
+            }
+        }
+        
+        function clearMap() {
+            // Clear existing markers and data
+            if (markerClusterGroup) {
+                map.removeLayer(markerClusterGroup);
+                markerClusterGroup = null;
+            }
+            
+            if (heatmapLayer) {
+                map.removeLayer(heatmapLayer);
+                heatmapLayer = null;
+            }
+            
+            // Remove existing layer control if it exists
+            if (layerControl) {
+                map.removeControl(layerControl);
+                layerControl = null;
+            }
+            
+            markers = [];
+            heatmapData = [];
+        }
+        
+        function addCrimesToMap(crimes) {
+            const isMobile = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+            // Build cluster options per device
+            const clusterOpts = isMobile
+            ? {
+                showCoverageOnHover: false,
+                maxClusterRadius: 70,          // merge a bit more on mobile to reduce DOM work
+                spiderfyOnMaxZoom: false,      // avoid heavy spiderfy animation on phones
+                disableClusteringAtZoom: 17,
+                chunkedLoading: true,
+                animateAddingMarkers: false     // mobile tweak
+                }
+            : {
+                showCoverageOnHover: false,
+                maxClusterRadius: 50,
+                spiderfyOnMaxZoom: true,
+                disableClusteringAtZoom: 18,
+                chunkedLoading: true,
+                animateAddingMarkers: true      // desktop keeps animations
+                };
+
+            // Create marker cluster group
+            markerClusterGroup = L.markerClusterGroup(clusterOpts);
+            
+            // Process each crime record and add to appropriate data structures
+            crimes.forEach(crime => {
+                // Skip if no coordinates
+                if (!crime.lat || !crime.long) {
+                    return;
+                }
+                
+                // Add to heatmap data
+                heatmapData.push([crime.lat, crime.long]);
+                
+                // Create popup content for individual markers
+                const popupContent = `
+                    <b>Complaint #:</b> ${safeField(crime.complaint_num)}<br/>
+                    <b>Offense:</b> ${safeField(crime.offense)}<br/>
+                    <b>Date:</b> ${safeField(crime.date_str)}<br/>
+                    <details>
+                      <summary><b>View Details</b></summary>
+                      <b>Time:</b> ${safeField(crime.time)}<br/>
+                      <b>Location:</b> ${safeField(crime.location)}<br/>
+                      <b>Victim:</b> ${safeField(crime.victim)}<br/>
+                      <b>Narrative:</b> ${safeField(crime.narrative)}<br/>
+                      <b>URL:</b> <a href="${safeField(crime.file_name)}" target="_blank">PDF Link</a>
+                    </details>
+                `;
+                
+                // Device-aware icon options (shadow only on desktop)
+                const iconOpts = isMobile
+                ? {
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                    // no shadow on mobile
+                    }
+                : {
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                    shadowSize: [41, 41]
+                    };
+
+                // Create marker and add to cluster group
+                const marker = L.marker([crime.lat, crime.long], {
+                icon: L.icon(iconOpts)
+                }).bindPopup(popupContent);
+                
+                markerClusterGroup.addLayer(marker);
+                markers.push(marker);
+            });
+
+            
+            //Using this isMobile flag to tone down how well the map is displaying heatmaplayer so it isn't
+            //slow af.
+            // Create the heatmap layer if we have data
+            heatmapLayer = L.heatLayer(heatmapData, {
+                radius: isMobile ? 14 : 20,
+                blur:   isMobile ? 10 : 15,
+                maxZoom: 17
+                });
+
+            
+
+            // Add both layers to the map initially - this ensures they both appear
+            if (markerClusterGroup) {
+                markerClusterGroup.addTo(map);
+            }
+            if (heatmapLayer && !isMobile) {
+                heatmapLayer.addTo(map); // keep off by default on mobile, still togglable via control
+            }
+            
+            // Create the layer control with both options
+            // This is the critical part that enables toggling between visualization modes
+            const overlays = {};
+            if (markerClusterGroup) {
+                overlays["Crime Markers"] = markerClusterGroup;
+            }
+            if (heatmapLayer) {
+                overlays["Heatmap"] = heatmapLayer;
+            }
+            
+            // Add layer control only if we have layers to control
+            if (Object.keys(overlays).length > 0) {
+                layerControl = L.control.layers(null, overlays, {
+                    collapsed: isMobile ? true : false,
+                    position: 'topleft'
+                }).addTo(map);
+            }
+            
+            // Fit map to show all markers if we have any
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds(), {padding: [50, 50]});
+            }
+        }
+        
+        // Function to export current view to CSV
+        function exportCurrentViewToCSV() {
+            if (!currentCrimeData || currentCrimeData.length === 0) {
+                alert('No data available to export. Please apply filters first.');
+                return;
+            }
+            
+            try {
+                // Convert the current crime data to CSV format
+                const headers = ['Date', 'Complaint #', 'Offense', 'Time', 'Location', 'Victim', 'Narrative', 'File Name', 'Latitude', 'Longitude'];
+                
+                // Create CSV content
+                let csvContent = headers.join(',') + '\n';
+                
+                currentCrimeData.forEach(crime => {
+                    const row = [
+                        safeFieldForCSV(crime.date_str),
+                        safeFieldForCSV(crime.complaint_num),
+                        safeFieldForCSV(crime.offense),
+                        safeFieldForCSV(crime.time),
+                        safeFieldForCSV(crime.location),
+                        safeFieldForCSV(crime.victim),
+                        safeFieldForCSV(crime.narrative),
+                        safeFieldForCSV(crime.file_name),
+                        safeFieldForCSV(crime.lat),
+                        safeFieldForCSV(crime.long)
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+                
+                // Create download link
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                
+                // Generate filename with current date and time
+                const now = new Date();
+                const dateStr = now.toISOString().split('T')[0];
+                const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+                link.setAttribute('download', `oak_park_crime_data_${dateStr}_${timeStr}.csv`);
+                
+                // Trigger download
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`📥 Exported ${currentCrimeData.length} crime records to CSV`);
+                updateLoadStatus(`Exported ${currentCrimeData.length} records to CSV successfully.`);
+                
+            } catch (error) {
+                console.error('Error exporting CSV:', error);
+                alert('Failed to export CSV. Please try again.');
+            }
+        }
+        
+        function safeField(value) {
+            if (value === null || value === undefined || value === "" || value === "null") {
+                return "Not found";
+            }
+            return String(value)
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+        }
+        
+        // Safe field formatting for CSV export
+        function safeFieldForCSV(value) {
+            if (value === null || value === undefined || value === "" || value === "null") {
+                return "";
+            }
+            
+            // Convert to string and handle CSV escaping
+            let stringValue = String(value);
+            
+            // If the value contains commas, quotes, or newlines, wrap it in quotes
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                // Escape existing quotes by doubling them
+                stringValue = stringValue.replace(/"/g, '""');
+                // Wrap in quotes
+                stringValue = '"' + stringValue + '"';
+            }
+            
+            return stringValue;
+        }
+    </script>
+</body>
+</html>
