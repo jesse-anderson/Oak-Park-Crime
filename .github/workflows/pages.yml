@@ -9,7 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  actions: read   # needed to list artifacts for this run :contentReference[oaicite:2]{index=2}
+  actions: read
 
 concurrency:
   group: "pages"
@@ -30,13 +30,11 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # Upload your site content (repo root is fine for Oak-Park-Crime)
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
 
-      # Deploy WITHOUT actions/deploy-pages@v4
       - name: Deploy via GitHub Pages REST API (robust)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,92 +42,72 @@ jobs:
           REPO: ${{ github.event.repository.name }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
-          # These are automatically provided when "id-token: write" permission is granted
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "==> Finding artifact named 'github-pages' for run ${RUN_ID} ..."
+          echo "==> Listing artifacts for this run (${RUN_ID})..."
           artifacts_json="$(gh api -H "Accept: application/vnd.github+json" \
             "/repos/${OWNER}/${REPO}/actions/runs/${RUN_ID}/artifacts")"
 
-          artifact_url="$(echo "${artifacts_json}" | python - <<'PY'
-import json,sys
-data=json.load(sys.stdin)
-arts=data.get("artifacts",[])
-target=None
-for a in arts:
-    if a.get("name")=="github-pages":
-        target=a
-        break
-if not target:
-    raise SystemExit("ERROR: No artifact named 'github-pages' found for this run.")
-# Use the archive download URL (authenticated); Pages deploy API supports artifact_url + oidc_token :contentReference[oaicite:3]{index=3}
-print(target["archive_download_url"])
-PY
-)"
+          artifact_url="$(echo "${artifacts_json}" | jq -r '
+            .artifacts
+            | map(select(.name == "github-pages"))
+            | .[0].archive_download_url // empty
+          ')"
+
+          if [[ -z "${artifact_url}" ]]; then
+            echo "ERROR: Could not find artifact named 'github-pages' for this run."
+            echo "Raw artifacts JSON:"
+            echo "${artifacts_json}"
+            exit 1
+          fi
+
           echo "Artifact archive_download_url: ${artifact_url}"
 
-          echo "==> Requesting OIDC token for Pages deployment ..."
-          # Request an OIDC token from the runner metadata service.
-          # (GitHub Pages deployment API expects oidc_token.) :contentReference[oaicite:4]{index=4}
+          echo "==> Requesting OIDC token..."
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "ERROR: Missing ACTIONS_ID_TOKEN_REQUEST_URL/TOKEN. Check permissions: id-token: write"
+            exit 1
+          fi
+
           oidc_json="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
 
-          oidc_token="$(echo "${oidc_json}" | python - <<'PY'
-import json,sys
-data=json.load(sys.stdin)
-val=data.get("value","")
-if not val:
-    raise SystemExit("ERROR: OIDC token response did not include 'value'.")
-print(val)
-PY
-)"
+          oidc_token="$(echo "${oidc_json}" | jq -r '.value // empty')"
+          if [[ -z "${oidc_token}" ]]; then
+            echo "ERROR: OIDC token response did not contain '.value'."
+            echo "Raw OIDC JSON:"
+            echo "${oidc_json}"
+            exit 1
+          fi
           echo "::add-mask::${oidc_token}"
 
-          echo "==> Creating Pages deployment (pages_build_version = ${SHA}) ..."
-          create_payload="$(python - <<PY
-import json
-print(json.dumps({
-  "artifact_url": "${artifact_url}",
-  "environment": "github-pages",
-  "pages_build_version": "${SHA}",
-  "oidc_token": "${oidc_token}"
-}))
-PY
-)"
-
+          echo "==> Creating Pages deployment for SHA=${SHA} ..."
           create_resp="$(gh api -X POST -H "Accept: application/vnd.github+json" \
             "/repos/${OWNER}/${REPO}/pages/deployments" \
-            -f "$(echo "${create_payload}" | python - <<'PY'
-# gh api -f expects key=value; we output lines for each.
-import json,sys
-p=json.load(sys.stdin)
-for k,v in p.items():
-    # Ensure no newlines
-    s=str(v).replace("\n"," ")
-    print(f"{k}={s}")
-PY
-)")"
+            -f artifact_url="${artifact_url}" \
+            -f environment="github-pages" \
+            -f pages_build_version="${SHA}" \
+            -f oidc_token="${oidc_token}")"
 
           echo "Create response: ${create_resp}"
 
-          deployment_id="$(echo "${create_resp}" | python - <<'PY'
-import json,sys
-data=json.load(sys.stdin)
-did=data.get("id","")
-if not did:
-    raise SystemExit("ERROR: Create deployment response missing 'id'.")
-print(did)
-PY
-)"
-          echo "Deployment id: ${deployment_id}"
+          deployment_id="$(echo "${create_resp}" | jq -r '.id // empty')"
+          page_url="$(echo "${create_resp}" | jq -r '.page_url // empty')"
 
-          # Poll official documented status endpoint :contentReference[oaicite:5]{index=5}
+          if [[ -z "${deployment_id}" ]]; then
+            echo "ERROR: Create deployment response missing 'id'."
+            exit 1
+          fi
+
+          echo "Deployment id: ${deployment_id}"
+          if [[ -n "${page_url}" ]]; then
+            echo "Page URL: ${page_url}"
+          fi
+
           echo "==> Polling deployment status..."
-          max_seconds=900   # 15 minutes
+          max_seconds=900
           interval=5
           elapsed=0
           blank_count=0
@@ -138,23 +116,13 @@ PY
             status_json="$(gh api -H "Accept: application/vnd.github+json" \
               "/repos/${OWNER}/${REPO}/pages/deployments/${deployment_id}" || true)"
 
-            status="$(echo "${status_json}" | python - <<'PY'
-import json,sys
-try:
-    data=json.load(sys.stdin)
-except Exception:
-    print("")
-    raise SystemExit(0)
-print(data.get("status","") or "")
-PY
-)"
+            status="$(echo "${status_json}" | jq -r '.status // empty' 2>/dev/null || true)"
 
             ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             echo "${ts} status='${status}'"
 
             if [[ -z "${status}" ]]; then
               blank_count=$((blank_count + 1))
-              # If GitHub returns blanks repeatedly, print raw JSON for visibility.
               if (( blank_count == 5 )); then
                 echo "WARNING: Received 5 blank status responses. Raw response:"
                 echo "${status_json}"
@@ -174,11 +142,11 @@ PY
                 exit 1
                 ;;
               cancelled|canceled)
-                echo "⚠️ Pages deployment cancelled."
+                echo "⚠️ Pages deployment canceled."
                 exit 1
                 ;;
               *)
-                # queued/in_progress/etc
+                # queued / in_progress / empty / unknown
                 ;;
             esac
 
@@ -186,7 +154,7 @@ PY
               echo "⏱️ Timeout waiting for Pages deployment after ${max_seconds}s."
               echo "Attempting to cancel deployment ${deployment_id}..."
               gh api -X POST -H "Accept: application/vnd.github+json" \
-                "/repos/${OWNER}/${REPO}/pages/deployments/${deployment_id}/cancel" || true  # :contentReference[oaicite:6]{index=6}
+                "/repos/${OWNER}/${REPO}/pages/deployments/${deployment_id}/cancel" || true
               exit 1
             fi
 
