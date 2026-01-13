@@ -618,7 +618,9 @@ async function initializeDuckDB() {
 
     // 2. GitHub Pages or Standard Web Server (relative paths from origin)
     // Also acts as a fallback for 127.0.0.1 if the VSCode special path isn't met or fails.
-    if (!db_instance && (hostname === "jesse-anderson.github.io" || hostname === "jesse-anderson.net" || hostname === "127.0.0.1" || hostname === "localhost" || hostname === "opcrime.jesse-anderson.net")) {
+    // NOTE: opcrime.jesse-anderson.net is excluded here because the WASM file is too large (>25MB)
+    // for Cloudflare Pages, so it must use the R2 proxy instead (step 3 below).
+    if (!db_instance && (hostname === "oak-park-crime.jesse200755.workers.dev" || hostname === "jesse-anderson.github.io" || hostname === "jesse-anderson.net" || hostname === "127.0.0.1" || hostname === "localhost")) {
         currentAttemptSource = `Local/GitHub Pages (${hostname})`;
         try {
             // Construct path like https://jesse-anderson.net/OP-Crime-Maps/js/duckdb/file.wasm
