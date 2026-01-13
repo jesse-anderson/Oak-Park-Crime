@@ -633,7 +633,7 @@ async function initializeDuckDB() {
     }
     
     // 3. R2 via Worker Proxy (Specifically for Cloudflare Pages domains if other attempts failed or weren't applicable)
-    if (!db_instance && (hostname.endsWith(".pages.dev") || hostname === "jesse-anderson.net")) {
+    if (!db_instance && (hostname.endsWith(".pages.dev") || hostname.endsWith("jesse-anderson.net"))) {
         // This ensures that if jesse-anderson.net was GitHub Pages and failed, it doesn't try R2.
         // But if jesse-anderson.net is Cloudflare Pages, the above local attempt *should* fail (404), then this R2 path is tried.
         // For *.pages.dev, the local attempt will also fail (404), then this is tried.
