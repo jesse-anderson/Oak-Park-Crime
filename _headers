@@ -1,3 +1,9 @@
+# CRITICAL: COOP/COEP headers for WASM with SharedArrayBuffer support
+# These headers MUST be set on the HTML page that loads the WASM
+/*.html
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+
 # Ensure WASM files are served correctly
 /js/duckdb/*.wasm
   Content-Type: application/wasm
@@ -10,6 +16,11 @@
   Content-Type: application/javascript
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Opener-Policy: same-origin
+  Cache-Control: public, max-age=86400
+
+# Database files
+/db/*.duckdb
+  Content-Type: application/octet-stream
   Cache-Control: public, max-age=86400
 
 # Allow CORS for all assets (helps with worker loading)
