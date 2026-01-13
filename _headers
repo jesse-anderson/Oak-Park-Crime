@@ -1,0 +1,17 @@
+# Ensure WASM files are served correctly
+/js/duckdb/*.wasm
+  Content-Type: application/wasm
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+  Cache-Control: public, max-age=31536000, immutable
+
+# Worker JS files
+/js/duckdb/*.js
+  Content-Type: application/javascript
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+  Cache-Control: public, max-age=86400
+
+# Allow CORS for all assets (helps with worker loading)
+/*
+  Access-Control-Allow-Origin: *
