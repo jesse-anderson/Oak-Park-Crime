@@ -703,8 +703,16 @@ async function initializeDuckDB() {
         updateLoadStatus("Database file downloaded, registering with DuckDB...");
         db = await db_instance.connect(); 
         await db_instance.registerFileBuffer('crime_data.duckdb', new Uint8Array(arrayBuffer));
-        await db.query(`ATTACH 'crime_data.duckdb' AS attached_crimedb (READ_ONLY)`); 
-        await db.query(`USE attached_crimedb`); 
+        await db.query(`ATTACH 'crime_data.duckdb' AS attached_crimedb (READ_ONLY)`);
+        await db.query(`USE attached_crimedb`);
+
+        // V3 schema split crimes into two tables (crimes + crime_details).
+        // Provide a flat compat view so existing search/popup/CSV code keeps working.
+        await db.query(`
+            CREATE OR REPLACE TEMP VIEW crimes_flat AS
+            SELECT c.*, d.time, d.victim, d.narrative, d.date_raw, d.source_page, d.notes
+            FROM crimes c JOIN crime_details d USING (record_id)
+        `);
 
         console.log("[DB Init] Database file registered and attached as 'attached_crimedb'. Used 'USE attached_crimedb'.");
         
@@ -1058,10 +1066,10 @@ async function initializeDuckDB() {
                 
                 // Build the complete query
                 const query = `
-                    SELECT 
-                        date_str, complaint_num, offense, time, location, victim, 
-                        narrative, file_name, lat, long
-                    FROM crimes
+                    SELECT
+                        date_str, complaint_num, offense, time, location, victim,
+                        narrative, pdf_filename, lat, long
+                    FROM crimes_flat
                     ${whereClause}
                     ORDER BY date DESC
                 `;
@@ -1192,7 +1200,7 @@ async function initializeDuckDB() {
                       <b>Location:</b> ${safeField(crime.location)}<br/>
                       <b>Victim:</b> ${safeField(crime.victim)}<br/>
                       <b>Narrative:</b> ${safeField(crime.narrative)}<br/>
-                      <b>URL:</b> <a href="${safeField(crime.file_name)}" target="_blank">PDF Link</a>
+                      <b>URL:</b> <a href="${safeField(crime.pdf_filename)}" target="_blank">PDF Link</a>
                     </details>
                 `;
                 
@@ -1304,7 +1312,7 @@ async function initializeDuckDB() {
                         safeFieldForCSV(crime.location),
                         safeFieldForCSV(crime.victim),
                         safeFieldForCSV(crime.narrative),
-                        safeFieldForCSV(crime.file_name),
+                        safeFieldForCSV(crime.pdf_filename),
                         safeFieldForCSV(crime.lat),
                         safeFieldForCSV(crime.long)
                     ];
