@@ -198,6 +198,8 @@
         let heatmapData = [];
         let offenseTypes = new Set();
         let currentCrimeData = []; // Store current filtered results for export
+        let currentFilterWhere = '';  // Last WHERE clause, reused by CSV export re-query
+        const detailCache = new Map(); // record_id -> {time, victim, narrative}; populated on popup open
         let layerControl; // Keep track of layer control to avoid duplicates
         let pendingHashState = null;
         let hydratingFromHash = false; // skip writing hash back during initial load
@@ -706,14 +708,6 @@ async function initializeDuckDB() {
         await db.query(`ATTACH 'crime_data.duckdb' AS attached_crimedb (READ_ONLY)`);
         await db.query(`USE attached_crimedb`);
 
-        // V3 schema split crimes into two tables (crimes + crime_details).
-        // Provide a flat compat view so existing search/popup/CSV code keeps working.
-        await db.query(`
-            CREATE OR REPLACE TEMP VIEW crimes_flat AS
-            SELECT c.*, d.time, d.victim, d.narrative, d.date_raw, d.source_page, d.notes
-            FROM crimes c JOIN crime_details d USING (record_id)
-        `);
-
         console.log("[DB Init] Database file registered and attached as 'attached_crimedb'. Used 'USE attached_crimedb'.");
         
         const tableCheckResult = await db.query(`SELECT COUNT(*) as count FROM crimes`);
@@ -1056,20 +1050,33 @@ async function initializeDuckDB() {
 
             // Build the final WHERE clause only if we have conditions
             const whereClause = allConditions.length > 0 ? `WHERE ${allConditions.join(' AND ')}` : '';
-            
+
+            // V3 schema: only pay the crime_details join when the user is searching narrative/victim.
+            // Map query never ships narrative/victim/time text to JS — those lazy-load on popup open.
+            const searchTermRaw = (document.getElementById('searchText')?.value || '').trim();
+            const narrativeChecked = !!document.getElementById('fieldNarrative')?.checked;
+            const victimChecked = !!document.getElementById('fieldVictim')?.checked;
+            const needsDetailJoin = searchTermRaw.length > 0 && (narrativeChecked || victimChecked);
+            const fromClause = needsDetailJoin
+                ? 'FROM crimes JOIN crime_details USING (record_id)'
+                : 'FROM crimes';
+
+            // Cache WHERE clause for the CSV export re-query
+            currentFilterWhere = whereClause;
+
             // Execute the query with timing
             try {
                 updateLoadStatus("Querying database...");
-                
+
                 // Start timing just the database query
                 const queryStartTime = performance.now();
-                
-                // Build the complete query
+
+                // Map-level columns only. Detail fields (time/victim/narrative) are fetched per-pin on popup open.
                 const query = `
                     SELECT
-                        date_str, complaint_num, offense, time, location, victim,
-                        narrative, pdf_filename, lat, long
-                    FROM crimes_flat
+                        record_id, date_str, complaint_num, offense, location,
+                        pdf_url, lat, long
+                    ${fromClause}
                     ${whereClause}
                     ORDER BY date DESC
                 `;
@@ -1189,18 +1196,20 @@ async function initializeDuckDB() {
                 // Add to heatmap data
                 heatmapData.push([crime.lat, crime.long]);
                 
-                // Create popup content for individual markers
+                // Map-level fields render immediately. Time/Victim/Narrative lazy-load on popup open
+                // (V3 crime_details is fetched per-pin, not shipped to JS up front).
+                const recordId = Number(crime.record_id);
                 const popupContent = `
                     <b>Complaint #:</b> ${safeField(crime.complaint_num)}<br/>
                     <b>Offense:</b> ${safeField(crime.offense)}<br/>
                     <b>Date:</b> ${safeField(crime.date_str)}<br/>
-                    <details>
+                    <details data-crime-record="${recordId}">
                       <summary><b>View Details</b></summary>
-                      <b>Time:</b> ${safeField(crime.time)}<br/>
+                      <b>Time:</b> <span data-lazy="time">&hellip;</span><br/>
                       <b>Location:</b> ${safeField(crime.location)}<br/>
-                      <b>Victim:</b> ${safeField(crime.victim)}<br/>
-                      <b>Narrative:</b> ${safeField(crime.narrative)}<br/>
-                      <b>URL:</b> <a href="${safeField(crime.pdf_filename)}" target="_blank">PDF Link</a>
+                      <b>Victim:</b> <span data-lazy="victim">&hellip;</span><br/>
+                      <b>Narrative:</b> <span data-lazy="narrative">&hellip;</span><br/>
+                      <b>URL:</b> <a href="${safeField(crime.pdf_url)}" target="_blank">PDF Link</a>
                     </details>
                 `;
                 
@@ -1226,7 +1235,9 @@ async function initializeDuckDB() {
                 const marker = L.marker([crime.lat, crime.long], {
                 icon: L.icon(iconOpts)
                 }).bindPopup(popupContent);
-                
+
+                marker.on('popupopen', (e) => { hydrateCrimeDetail(e.popup.getElement(), recordId); });
+
                 markerClusterGroup.addLayer(marker);
                 markers.push(marker);
             });
@@ -1289,21 +1300,58 @@ async function initializeDuckDB() {
             }
         }
         
+        // Lazy-load time/victim/narrative for a single pin. Called from each marker's popupopen.
+        // Cache keyed by record_id — identical across filter changes.
+        async function hydrateCrimeDetail(popupEl, recordId) {
+            if (!popupEl) return;
+            const slots = popupEl.querySelectorAll('span[data-lazy]');
+            if (slots.length === 0) return; // popup structure unexpected; bail silently
+
+            let detail = detailCache.get(recordId);
+            if (!detail) {
+                try {
+                    const res = await db.query(`SELECT time, victim, narrative FROM crime_details WHERE record_id = ${recordId}`);
+                    detail = res.toArray()[0] || {};
+                    detailCache.set(recordId, detail);
+                } catch (err) {
+                    console.error('[detail hydrate] fetch failed for record_id', recordId, err);
+                    slots.forEach(s => { s.textContent = '—'; });
+                    return;
+                }
+            }
+            slots.forEach(s => {
+                const key = s.dataset.lazy;
+                s.textContent = ''; // clear the ellipsis
+                s.insertAdjacentHTML('afterbegin', safeField(detail[key]));
+            });
+        }
+
         // Function to export current view to CSV
-        function exportCurrentViewToCSV() {
+        async function exportCurrentViewToCSV() {
             if (!currentCrimeData || currentCrimeData.length === 0) {
                 alert('No data available to export. Please apply filters first.');
                 return;
             }
             
             try {
-                // Convert the current crime data to CSV format
-                const headers = ['Date', 'Complaint #', 'Offense', 'Time', 'Location', 'Victim', 'Narrative', 'File Name', 'Latitude', 'Longitude'];
-                
-                // Create CSV content
+                // Re-query with the full join: detail fields aren't in currentCrimeData
+                // (map query is crimes-only). Pay the join cost once, on user-initiated export.
+                updateLoadStatus('Preparing CSV export...');
+                const exportQuery = `
+                    SELECT
+                        date_str, complaint_num, offense, time, location, victim,
+                        narrative, pdf_url, lat, long
+                    FROM crimes JOIN crime_details USING (record_id)
+                    ${currentFilterWhere}
+                    ORDER BY date DESC
+                `;
+                const exportResult = await db.query(exportQuery);
+                const rows = exportResult.toArray();
+
+                const headers = ['Date', 'Complaint #', 'Offense', 'Time', 'Location', 'Victim', 'Narrative', 'PDF URL', 'Latitude', 'Longitude'];
                 let csvContent = headers.join(',') + '\n';
-                
-                currentCrimeData.forEach(crime => {
+
+                rows.forEach(crime => {
                     const row = [
                         safeFieldForCSV(crime.date_str),
                         safeFieldForCSV(crime.complaint_num),
@@ -1312,34 +1360,34 @@ async function initializeDuckDB() {
                         safeFieldForCSV(crime.location),
                         safeFieldForCSV(crime.victim),
                         safeFieldForCSV(crime.narrative),
-                        safeFieldForCSV(crime.pdf_filename),
+                        safeFieldForCSV(crime.pdf_url),
                         safeFieldForCSV(crime.lat),
                         safeFieldForCSV(crime.long)
                     ];
                     csvContent += row.join(',') + '\n';
                 });
-                
+
                 // Create download link
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
                 const url = URL.createObjectURL(blob);
                 link.setAttribute('href', url);
-                
+
                 // Generate filename with current date and time
                 const now = new Date();
                 const dateStr = now.toISOString().split('T')[0];
                 const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
                 link.setAttribute('download', `oak_park_crime_data_${dateStr}_${timeStr}.csv`);
-                
+
                 // Trigger download
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
-                console.log(`📥 Exported ${currentCrimeData.length} crime records to CSV`);
-                updateLoadStatus(`Exported ${currentCrimeData.length} records to CSV successfully.`);
-                
+
+                console.log(`Exported ${rows.length} crime records to CSV`);
+                updateLoadStatus(`Exported ${rows.length} records to CSV successfully.`);
+
             } catch (error) {
                 console.error('Error exporting CSV:', error);
                 alert('Failed to export CSV. Please try again.');
