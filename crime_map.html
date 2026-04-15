@@ -145,6 +145,15 @@
             </div>
             <div id="searchStatus">No search active.</div>
             </div>
+            <!-- Zone filter lives in its own row: it is a spatial filter, not a text search. -->
+            <div class="advanced-row">
+                <div class="field-group">
+                    <label class="label" for="zoneFilter"><strong>Filter by zone:</strong></label>
+                    <select id="zoneFilter">
+                        <option value="all" selected>All zones</option>
+                    </select>
+                </div>
+            </div>
         </div>
         </div>
 
@@ -452,22 +461,40 @@ function hydrateUIFromHashPre() {
 
 // Phase 2: run AFTER offense dropdown is populated (sets offense only)
 // we don't know what offenses occurred until we grab date!!!
+// Hydrate dropdowns that depend on an async populate step (offense & zone).
+// Must run AFTER populateInitialOffenseDropdown() and populateZoneDropdown() have
+// added <option>s, otherwise the value we try to set won't exist yet.
 function hydrateUIFromHashPost() {
-  if (!pendingHashState?.offense) return;
-  const dd = document.getElementById('offenseType');
-  if (!dd) return;
-  const wanted = pendingHashState.offense;
-  dd.value = [...dd.options].some(o => o.value === wanted) ? wanted : 'all';
+  // Offense: restore the hash-specified offense filter if that option exists.
+  if (pendingHashState?.offense) {
+    const dd = document.getElementById('offenseType');
+    if (dd) {
+      const wanted = pendingHashState.offense;
+      dd.value = [...dd.options].some(o => o.value === wanted) ? wanted : 'all';
+    }
+  }
+  // Zone: same pattern. Zone values are 'all' | 'unzoned' | '1'..'8' (string).
+  if (pendingHashState?.zone) {
+    const zd = document.getElementById('zoneFilter');
+    if (zd) {
+      const wanted = pendingHashState.zone;
+      zd.value = [...zd.options].some(o => o.value === wanted) ? wanted : 'all';
+    }
+  }
 }
 
 // --- URL hash state helpers ---
-// State shape: { date, customRange, offense, searchText, searchMode, fields: {offense,narrative,location,victim} }
+// State shape: { date, customRange, offense, zone, searchText, searchMode,
+//                fields: {offense, narrative, location, victim} }
+// zone values mirror the <select>: 'all' (no filter), 'unzoned' (zone_id IS NULL),
+// or a stringified zone number '1'..'8'.
 
 function getUIState() {
   return {
     date: document.getElementById('dateSelector')?.value || 'last14',
     customRange: document.getElementById('customRange')?.value || '',
     offense: document.getElementById('offenseType')?.value || 'all',
+    zone: document.getElementById('zoneFilter')?.value || 'all',
     searchText: document.getElementById('searchText')?.value || '',
     searchMode: document.getElementById('searchMode')?.value || 'any',
     fields: {
@@ -506,6 +533,9 @@ function stateToHash(state) {
   if (state.date) params.set('date', state.date);
   if (state.customRange) params.set('range', state.customRange);
   if (state.offense && state.offense !== 'all') params.set('offense', state.offense);
+  // Zone uses short key 'z' for URL compactness. Only written when non-default so the
+  // default ("All zones") produces no hash entry and keeps shareable links clean.
+  if (state.zone && state.zone !== 'all') params.set('z', state.zone);
   if (state.searchText) params.set('q', state.searchText);
   if (state.searchMode && state.searchMode !== 'any') params.set('mode', state.searchMode);
 
@@ -533,6 +563,8 @@ function hashToState() {
     date: params.get('date') || 'last14',
     customRange: params.get('range') || '',
     offense: params.get('offense') || 'all',
+    // Zone read from short key 'z'. Mirrors the stateToHash write side.
+    zone: params.get('z') || 'all',
     searchText: params.get('q') || '',
     searchMode: params.get('mode') || 'any',
     fields: {
@@ -726,8 +758,9 @@ async function initializeDuckDB() {
         updateLoadStatus("Database loaded, initializing map controls...");
         initializeMap(); 
         await loadMetadata(); 
-        await populateInitialOffenseDropdown(); 
-        
+        await populateInitialOffenseDropdown();
+        await populateZoneDropdown();
+
         //its funny how much these two lines messed with my hashes by automatically setting to last 14 dats >.<
         // document.getElementById('dateSelector').value = 'last14';
         // console.log("[DB Init] Default dateSelector set to 'last14'.");
@@ -782,6 +815,47 @@ async function initializeDuckDB() {
             }
         }
         
+        // Populate zone dropdown once per session. Zone assignment is static in the DB
+        // (computed at build time in OP-Crime), so no need to re-query on filter change.
+        async function populateZoneDropdown() {
+            try {
+                const result = await db.query(`
+                    SELECT DISTINCT zone_id, zone_name
+                    FROM crimes
+                    WHERE zone_id IS NOT NULL
+                    ORDER BY zone_id
+                `);
+                const dropdown = document.getElementById('zoneFilter');
+                if (!dropdown) return;
+
+                // Reset to just the default; keep the currently-selected value if still valid.
+                const prev = dropdown.value;
+                dropdown.innerHTML = '<option value="all">All zones</option>';
+
+                for (const row of result.toArray()) {
+                    if (row.zone_id == null) continue;
+                    const opt = document.createElement('option');
+                    opt.value = String(row.zone_id);
+                    opt.textContent = row.zone_name || `Zone ${row.zone_id}`;
+                    dropdown.appendChild(opt);
+                }
+                // Unzoned bucket last; ~7% of rows have null zone_id by design (incidents
+                // reported at OP PD but occurring outside village boundaries, or no usable coords).
+                // Explicit label disambiguates "All zones" (which includes unzoned) vs this bucket.
+                const unzoned = document.createElement('option');
+                unzoned.value = 'unzoned';
+                unzoned.textContent = 'Outside Oak Park (no zone)';
+                dropdown.appendChild(unzoned);
+
+                // Restore prior selection if still valid (e.g. after hash hydration wrote it first).
+                if ([...dropdown.options].some(o => o.value === prev)) {
+                    dropdown.value = prev;
+                }
+            } catch (err) {
+                console.error('[zones] populate failed:', err);
+            }
+        }
+
         async function populateInitialOffenseDropdown() {
             try {
                 // Initial population with all offenses
@@ -1052,7 +1126,19 @@ async function initializeDuckDB() {
                 const escapedOffense = offenseType.replace(/'/g, "''");
                 allConditions.push(`offense = '${escapedOffense}'`);
             }
-            
+
+            // Zone filter. Values: 'all' (no filter), 'unzoned' (zone_id IS NULL), '1'..'8' (numeric).
+            // zone_id is precomputed at build time (OP-Crime/prepare_crime_db.py); no client-side PIP.
+            const zoneFilter = document.getElementById('zoneFilter')?.value || 'all';
+            if (zoneFilter === 'unzoned') {
+                allConditions.push('zone_id IS NULL');
+            } else if (zoneFilter !== 'all') {
+                const zoneInt = parseInt(zoneFilter, 10);
+                if (Number.isInteger(zoneInt)) {
+                    allConditions.push(`zone_id = ${zoneInt}`);
+                }
+            }
+
             // NEW[8.10.25]: add advanced search conditions
             const searchConds = buildSearchConditions();
             allConditions = allConditions.concat(searchConds);
@@ -1115,8 +1201,14 @@ async function initializeDuckDB() {
                 
                 if (crimes.length > 0) {
                     addCrimesToMap(crimes);
+                    // When a specific zone is filtered, surface the zone polygons so the user
+                    // sees spatial context. Don't auto-disable on 'all' -- that would override
+                    // the user's explicit overlay toggle preference.
+                    if (zoneFilter !== 'all' && zones2024LayerGroup && !map.hasLayer(zones2024LayerGroup)) {
+                        map.addLayer(zones2024LayerGroup);
+                    }
                     updateLoadStatus("Map updated successfully.");
-                    
+
                     // Enable export button
                     document.getElementById('exportCSV').disabled = false;
                 } else {
