@@ -164,7 +164,8 @@
             <a href="https://blog.jesse-anderson.net/">My Blog</a> |
             <a href="https://blog.jesse-anderson.net/posts/OP-Crime-Documentation/">Documentation</a> |
             <a href="mailto:jesse@jesse-anderson.net">Contact</a> |
-            <a href="https://forms.gle/GnyaVwo1Vzm8nBH6A">Add me to Weekly Updates</a>
+            <a href="https://forms.gle/GnyaVwo1Vzm8nBH6A">Add me to Weekly Updates</a> |
+            <a href="https://buymeacoffee.com/jesseanderson" target="_blank" rel="noopener">Buy Me a Coffee</a>
         </div>
         <div>Copyright &copy; <span id="currentYear"></span> Jesse Anderson. All rights reserved.</div>
     </div>
@@ -229,7 +230,10 @@
         // Initialize everything once the page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Set current year in footer
-            document.getElementById('currentYear').textContent = new Date().getFullYear();
+            {
+              const cy = new Date().getFullYear();
+              document.getElementById('currentYear').textContent = cy > 2024 ? `2024\u2013${cy}` : '2024';
+            }
             
             // Initialize date range picker
             $('#customRange').daterangepicker({
@@ -253,9 +257,18 @@
                 updateOffenseDropdownForTimePeriod();
             });
             
-            // Disclaimer button
+            // Disclaimer: versioned localStorage ack. Bump DISCLAIMER_VERSION whenever the
+            // text in #disclaimerContent materially changes so prior acceptance doesn't cover new terms.
+            const DISCLAIMER_VERSION = 'v1-2026-04';
+            const DISCLAIMER_ACK_KEY = 'opCrimeDisclaimerAck';
+            try {
+                if (localStorage.getItem(DISCLAIMER_ACK_KEY) === DISCLAIMER_VERSION) {
+                    document.getElementById('disclaimerOverlay').style.display = 'none';
+                }
+            } catch (_) { /* localStorage disabled — fall through and show disclaimer */ }
             document.getElementById('acceptButton').addEventListener('click', function() {
                 document.getElementById('disclaimerOverlay').style.display = 'none';
+                try { localStorage.setItem(DISCLAIMER_ACK_KEY, DISCLAIMER_VERSION); } catch (_) {}
             });
             
             // Export CSV button
@@ -370,16 +383,12 @@ async function loadZonesCombined() {
   zones2024LayerGroup = L.layerGroup([layer]);
 }
 
-// Registers the overlay in the control if it already exists; otherwise we’ll
-// add it later when building the control in addCrimesToMap(...)
+// If the layer control exists, register zones now; otherwise the next
+// addCrimesToMap() rebuild will pick them up from zones2024LayerGroup.
 function registerZonesOverlayIfReady() {
   if (!zones2024LayerGroup) return;
   if (typeof layerControl !== 'undefined' && layerControl) {
     layerControl.addOverlay(zones2024LayerGroup, 'Policing Zones [2024]');
-  } else {
-    // we’ll add it when the control is created
-    if (!window.__pendingOverlays) window.__pendingOverlays = [];
-    window.__pendingOverlays.push({ name: 'Policing Zones [2024]', layer: zones2024LayerGroup });
   }
 }
 
@@ -1262,8 +1271,9 @@ async function initializeDuckDB() {
                 heatmapLayer.addTo(map); // keep off by default on mobile, still togglable via control
             }
         
-            // Create the layer control with both options
-            // This is the critical part that enables toggling between visualization modes
+            // Rebuild the layer control from scratch each call. Zones are re-attached here
+            // if available; filter re-applies used to silently drop the zones toggle because
+            // the old one-shot __pendingOverlays drain never re-populated.
             const overlays = {};
             if (markerClusterGroup) {
                 overlays["Crime Markers"] = markerClusterGroup;
@@ -1271,27 +1281,15 @@ async function initializeDuckDB() {
             if (heatmapLayer) {
                 overlays["Heatmap"] = heatmapLayer;
             }
-            // if (zones2024LayerGroup) {
-            //     overlays["Policing Zones [2024]"] = zones2024LayerGroup;
-            // }
+            if (zones2024LayerGroup) {
+                overlays["Policing Zones [2024]"] = zones2024LayerGroup;
+            }
 
-            // Add layer control only if we have layers to control
             if (Object.keys(overlays).length > 0) {
                 layerControl = L.control.layers(null, overlays, {
                     collapsed: isMobile ? true : false,
                     position: 'topleft'
                 }).addTo(map);
-            }
-            
-            //also eye this suspiciously
-            // Flush any overlays that registered before the control existed
-            if (window.__pendingOverlays?.length) {
-            for (const {name, layer} of window.__pendingOverlays) {
-                try { layerControl.addOverlay(layer, name); } catch (e) {
-                console.warn('Pending overlay failed to add:', name, e);
-                }
-            }
-            window.__pendingOverlays = [];
             }
             // Fit map to show all markers if we have any
             if (markers.length > 0) {
@@ -1348,8 +1346,10 @@ async function initializeDuckDB() {
                 const exportResult = await db.query(exportQuery);
                 const rows = exportResult.toArray();
 
+                const exportedAt = new Date().toISOString();
+                const disclaimer = `Oak Park Crime Data export (${exportedAt}) from https://opcrime.jesse-anderson.net — parsed from public Oak Park PD activity reports. For informational purposes only; no warranty of accuracy or completeness; author disclaims all liability. Do not rely on this data for legal, safety, or operational decisions.`;
                 const headers = ['Date', 'Complaint #', 'Offense', 'Time', 'Location', 'Victim', 'Narrative', 'PDF URL', 'Latitude', 'Longitude'];
-                let csvContent = headers.join(',') + '\n';
+                let csvContent = safeFieldForCSV(disclaimer) + '\n' + headers.join(',') + '\n';
 
                 rows.forEach(crime => {
                     const row = [
