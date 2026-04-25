@@ -47,7 +47,7 @@
                 <li>The <strong>official</strong> and <strong>complete</strong> PDF files remain 
                     with the Oak Park Police Department.</li>
                 <li>You <strong>will not hold</strong> the author <strong>liable</strong> for <strong>any</strong> 
-                    decisions—formal or informal—based on this tool.</li>
+                    decisions, formal or informal, based on this tool.</li>
                 <li>This tool <strong>should not</strong> be used in <strong>any</strong> official or unofficial 
                     <strong>decision-making</strong>.</li>
             </ul>
@@ -200,6 +200,24 @@
         // Import DuckDB ES module
         import * as duckdb from './js/duckdb/duckdb-browser.mjs';
 
+        // Inject willReadFrequently:true for the leaflet-heat canvas only.
+        // leaflet-heat does many getImageData reads per pan/zoom; without this hint
+        // the browser falls back to a slower Canvas2D path and warns in the console.
+        // Scoped by class name so we don't perturb Leaflet's own preferCanvas vector renderer.
+        (function patchHeatmapCanvas() {
+            const origGetContext = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function (contextType, attributes) {
+                if (
+                    contextType === '2d' &&
+                    this.classList &&
+                    this.classList.contains('leaflet-heatmap-layer')
+                ) {
+                    attributes = Object.assign({ willReadFrequently: true }, attributes || {});
+                }
+                return origGetContext.call(this, contextType, attributes);
+            };
+        })();
+
         // Constants
         const OAK_PARK_VILLAGE_HALL_LAT = 41.87984134058715;
         const OAK_PARK_VILLAGE_HALL_LNG = -87.7789930902372;
@@ -225,7 +243,7 @@
         let zones2024Ready = null;                // Promise so we can await before making the control
         const ZONES_PANE = 'zones2024Pane';
 
-        // 8 distinct, map-friendly colors (Okabe–Ito)
+        // 8 distinct, map-friendly colors (Okabe-Ito)
         //https://easystats.github.io/see/reference/scale_color_okabeito.html
         const ZONES_COLORS = [
         '#E69F00', // Zone 1  (orange)
@@ -279,7 +297,7 @@
                 if (localStorage.getItem(DISCLAIMER_ACK_KEY) === DISCLAIMER_VERSION) {
                     document.getElementById('disclaimerOverlay').style.display = 'none';
                 }
-            } catch (_) { /* localStorage disabled — fall through and show disclaimer */ }
+            } catch (_) { /* localStorage disabled - fall through and show disclaimer */ }
             document.getElementById('acceptButton').addEventListener('click', function() {
                 document.getElementById('disclaimerOverlay').style.display = 'none';
                 try { localStorage.setItem(DISCLAIMER_ACK_KEY, DISCLAIMER_VERSION); } catch (_) {}
@@ -1090,19 +1108,34 @@ async function initializeDuckDB() {
         }
         
         function initializeMap() {
-            // Create map centered on Oak Park
-            map = L.map('map').setView([OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG], 13);
-            
+            // Create map centered on Oak Park.
+            // maxZoom: 18 matches the tile cache's upper bound and gives building-level detail.
+            // preferCanvas: true renders vector layers (zones, GeoJSON) to one canvas instead of
+            // per-feature SVG nodes - major pan/zoom speedup with the policing zones layer on.
+            map = L.map('map', { maxZoom: 18, preferCanvas: true }).setView(
+                [OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG],
+                13
+            );
+
             //policing zones
             const zonesPane = map.createPane(ZONES_PANE);
             zonesPane.style.zIndex = 350;
             zonesPane.style.pointerEvents = 'none';   // don’t block marker/popup clicks
-            
-            // Add tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
+            const isMobile = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 18,
+                // Load tiles while panning on desktop; keep Leaflet's mobile default to save bandwidth/CPU.
+                updateWhenIdle: isMobile,
+                // Skip intermediate-zoom tile fetches during zoom animations; only request the final zoom.
+                updateWhenZooming: false,
+                keepBuffer: isMobile ? 2 : 4,
+                detectRetina: false,
+                crossOrigin: true
             }).addTo(map);
-            
+
             // Initialize apply filters button
             document.getElementById('applyFilters').addEventListener('click', applyFilters);
         }
@@ -1152,7 +1185,7 @@ async function initializeDuckDB() {
             const whereClause = allConditions.length > 0 ? `WHERE ${allConditions.join(' AND ')}` : '';
 
             // V3 schema: only pay the crime_details join when the user is searching narrative/victim.
-            // Map query never ships narrative/victim/time text to JS — those lazy-load on popup open.
+            // Map query never ships narrative/victim/time text to JS - those lazy-load on popup open.
             const searchTermRaw = (document.getElementById('searchText')?.value || '').trim();
             const narrativeChecked = !!document.getElementById('fieldNarrative')?.checked;
             const victimChecked = !!document.getElementById('fieldVictim')?.checked;
@@ -1291,17 +1324,35 @@ async function initializeDuckDB() {
 
             // Create marker cluster group
             markerClusterGroup = L.markerClusterGroup(clusterOpts);
-            
+
+            // Build the icon ONCE and reuse for every marker.
+            // Previously L.icon() was rebuilt on every iteration of crimes.forEach.
+            const sharedCrimeIcon = L.icon(isMobile
+                ? {
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                }
+                : {
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                    shadowSize: [41, 41]
+                });
+
             // Process each crime record and add to appropriate data structures
             crimes.forEach(crime => {
                 // Skip if no coordinates
                 if (!crime.lat || !crime.long) {
                     return;
                 }
-                
+
                 // Add to heatmap data
                 heatmapData.push([crime.lat, crime.long]);
-                
+
                 // Map-level fields render immediately. Time/Victim/Narrative lazy-load on popup open
                 // (V3 crime_details is fetched per-pin, not shipped to JS up front).
                 const recordId = Number(crime.record_id);
@@ -1318,28 +1369,9 @@ async function initializeDuckDB() {
                       <b>URL:</b> <a href="${safeField(crime.pdf_url)}" target="_blank">PDF Link</a>
                     </details>
                 `;
-                
-                // Device-aware icon options (shadow only on desktop)
-                const iconOpts = isMobile
-                ? {
-                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34]
-                    // no shadow on mobile
-                    }
-                : {
-                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-                    shadowSize: [41, 41]
-                    };
 
-                // Create marker and add to cluster group
                 const marker = L.marker([crime.lat, crime.long], {
-                icon: L.icon(iconOpts)
+                    icon: sharedCrimeIcon
                 }).bindPopup(popupContent);
 
                 marker.on('popupopen', (e) => { hydrateCrimeDetail(e.popup.getElement(), recordId); });
@@ -1396,7 +1428,7 @@ async function initializeDuckDB() {
         }
         
         // Lazy-load time/victim/narrative for a single pin. Called from each marker's popupopen.
-        // Cache keyed by record_id — identical across filter changes.
+        // Cache keyed by record_id - identical across filter changes.
         async function hydrateCrimeDetail(popupEl, recordId) {
             if (!popupEl) return;
             const slots = popupEl.querySelectorAll('span[data-lazy]');
@@ -1410,7 +1442,7 @@ async function initializeDuckDB() {
                     detailCache.set(recordId, detail);
                 } catch (err) {
                     console.error('[detail hydrate] fetch failed for record_id', recordId, err);
-                    slots.forEach(s => { s.textContent = '—'; });
+                    slots.forEach(s => { s.textContent = '-'; });
                     return;
                 }
             }
@@ -1444,7 +1476,7 @@ async function initializeDuckDB() {
                 const rows = exportResult.toArray();
 
                 const exportedAt = new Date().toISOString();
-                const disclaimer = `Oak Park Crime Data export (${exportedAt}) from https://opcrime.jesse-anderson.net — parsed from public Oak Park PD activity reports. For informational purposes only; no warranty of accuracy or completeness; author disclaims all liability. Do not rely on this data for legal, safety, or operational decisions.`;
+                const disclaimer = `Oak Park Crime Data export (${exportedAt}) from https://opcrime.jesse-anderson.net - parsed from public Oak Park PD activity reports. For informational purposes only; no warranty of accuracy or completeness; author disclaims all liability. Do not rely on this data for legal, safety, or operational decisions.`;
                 const headers = ['Date', 'Complaint #', 'Offense', 'Time', 'Location', 'Victim', 'Narrative', 'PDF URL', 'Latitude', 'Longitude'];
                 let csvContent = safeFieldForCSV(disclaimer) + '\n' + headers.join(',') + '\n';
 
@@ -1519,6 +1551,94 @@ async function initializeDuckDB() {
             
             return stringValue;
         }
+    </script>
+
+    <script>
+    /*
+      Tile Service Worker A/B toggle.
+      Default: ON. Override via localStorage flag 'op_disable_sw' = '1'.
+      Console API:
+        window.tileSW.off()    - disable SW + unregister + clear tile caches; reload to test
+        window.tileSW.on()     - re-enable SW; reload to test
+        window.tileSW.status() - print current state
+    */
+    (function () {
+        const FLAG_KEY = 'op_disable_sw';
+
+        function isDisabled() {
+            try { return localStorage.getItem(FLAG_KEY) === '1'; }
+            catch (_) { return false; }
+        }
+
+        async function clearTileCaches() {
+            if (!('caches' in window)) return;
+            const names = await caches.keys();
+            await Promise.all(
+                names.filter(n => n.startsWith('op-crime-osm-tiles-'))
+                     .map(n => caches.delete(n))
+            );
+        }
+
+        async function unregisterAll() {
+            if (!('serviceWorker' in navigator)) return;
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        window.tileSW = {
+            off: async function () {
+                try { localStorage.setItem(FLAG_KEY, '1'); } catch (_) {}
+                await unregisterAll();
+                await clearTileCaches();
+                console.log('[SW] DISABLED. Reload the page to test without the tile cache.');
+            },
+            on: function () {
+                try { localStorage.setItem(FLAG_KEY, '0'); } catch (_) {}
+                console.log('[SW] ENABLED. Reload the page to register the tile cache.');
+            },
+            status: function () {
+                const enabled = !isDisabled();
+                console.log(`[SW] tile cache flag: ${enabled ? 'ENABLED (default)' : 'DISABLED'}`);
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => {
+                        console.log(`[SW] active registrations: ${regs.length}`);
+                    });
+                }
+                return enabled;
+            }
+        };
+
+        if (!('serviceWorker' in navigator)) return;
+
+        if (isDisabled()) {
+            // Make sure no stale SW from a previous session is still controlling the page.
+            unregisterAll();
+            console.log('[SW] tile cache DISABLED via localStorage. Run window.tileSW.on() to re-enable.');
+            return;
+        }
+
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./osm-tile-cache-sw.js')
+                .then(registration => {
+                    console.log('[SW] Oak Park OSM tile cache registered:', registration.scope);
+
+                    if (navigator.storage && navigator.storage.estimate) {
+                        navigator.storage.estimate().then(est => {
+                            const usedMB = (est.usage / 1048576).toFixed(1);
+                            const quotaMB = (est.quota / 1048576).toFixed(0);
+                            console.log(`[Storage] ${usedMB} MB used of ${quotaMB} MB quota`);
+                        });
+                    }
+
+                    if (registration.active) {
+                        registration.active.postMessage({ type: 'tile-cache-stats' });
+                    }
+                })
+                .catch(error => {
+                    console.warn('[SW] Oak Park OSM tile cache registration failed:', error);
+                });
+        });
+    })();
     </script>
 </body>
 </html>
