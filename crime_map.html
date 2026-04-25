@@ -200,6 +200,43 @@
         // Import DuckDB ES module
         import * as duckdb from './js/duckdb/duckdb-browser.mjs';
 
+        /*
+          Memory vs. UX tradeoff (changes landed on 2026-04-24 / 2026-04-25).
+
+          Before this work the page sat at roughly 200 MB resident, with most
+          of the cost coming from DuckDB and the leaflet-heat canvas. Pan and
+          zoom redrew the entire heatmap every moveend, the policing zones
+          repainted whenever the pan exceeded Leaflet's default 10% canvas
+          padding, and every OSM tile fetch hit the network with no caching.
+
+          Several optimizations now trade additional RAM (and a small amount
+          of disk for the Service Worker cache) for materially smoother panning:
+
+          - Buffered heatmap rasterization: leaflet-heat canvas grows to
+            viewport + 75% padding (~6x area, ~50 MB at 1080p) so most pans
+            translate the existing canvas instead of redrawing.
+          - Larger zone canvas padding (1.0 vs 0.1): zones repaint far less
+            often during long pans, at the cost of a bigger vector canvas.
+          - keepBuffer: 6 (was 4) on desktop: Leaflet keeps two extra rings
+            of tiles loaded around the viewport. Memory only, no extra fetches.
+          - Speculative outer-ring tile prefetch on idle: a few extra tiles
+            requested per pause, scoped to the 5-mile cache radius.
+          - Two-tier Service Worker tile cache (~80 MB ceiling on disk):
+            backbone + LRU-trimmed hot tier for fast repeat views.
+          - SW pre-warm ping every 25s to avoid cold-start latency.
+
+          Net effect: total page memory is larger than it used to be (the
+          worst case is on the order of 250 to 400 MB depending on viewport
+          size and how much of the heatmap and zone canvases are live), but
+          panning, zooming, and repeat tile loads are substantially faster.
+
+          Knobs to tune if the memory cost ever becomes a problem:
+          - HEATMAP_PAD_FRAC in patchHeatLayerBuffered (currently 0.75)
+          - padding on the zonesRenderer in loadZonesCombined (currently 1.0)
+          - keepBuffer on the tile layer (currently 6 on desktop)
+          - MAX_HOT_CACHE_ENTRIES in osm-tile-cache-sw.js (currently 5000)
+        */
+
         // Inject willReadFrequently:true for the leaflet-heat canvas only.
         // leaflet-heat does many getImageData reads per pan/zoom; without this hint
         // the browser falls back to a slower Canvas2D path and warns in the console.
