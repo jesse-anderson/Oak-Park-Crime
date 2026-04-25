@@ -218,6 +218,133 @@
             };
         })();
 
+        /*
+          Buffered heatmap rasterization.
+
+          Stock leaflet-heat sizes its canvas to the viewport and rebuilds the
+          entire heatmap on every moveend. With this patch, the canvas is sized
+          to viewport + HEATMAP_PAD_FRAC of padding in each direction and is
+          positioned in layer-point coordinates. As long as a pan keeps the
+          new viewport inside the previously rendered region, no redraw fires.
+          A redraw is forced only when the viewport exits that region or the
+          zoom level changes.
+
+          Memory cost at PAD_FRAC=0.75: a 1920x1080 viewport produces a
+          ~4800x2700 canvas (~52 MB). At smaller viewports the canvas is
+          proportionally smaller.
+        */
+        (function patchHeatLayerBuffered() {
+            if (!window.L || !L.HeatLayer) return;
+
+            const HEATMAP_PAD_FRAC = 0.75;
+
+            L.HeatLayer.prototype._reset = function () {
+                if (!this._map || !this._heat) return;
+                if (this._heatBufferStillCovers()) return;
+                this._fullHeatReset();
+            };
+
+            L.HeatLayer.prototype._heatBufferStillCovers = function () {
+                if (!this._heatBufBounds) return false;
+                if (this._heatBufZoom !== this._map.getZoom()) return false;
+
+                const map = this._map;
+                const size = map.getSize();
+                const tl = map.containerPointToLayerPoint([0, 0]);
+                const br = map.containerPointToLayerPoint([size.x, size.y]);
+                const b = this._heatBufBounds;
+
+                return (
+                    tl.x >= b.min.x && tl.y >= b.min.y &&
+                    br.x <= b.max.x && br.y <= b.max.y
+                );
+            };
+
+            L.HeatLayer.prototype._fullHeatReset = function () {
+                const map = this._map;
+                const size = map.getSize();
+                const padX = Math.round(size.x * HEATMAP_PAD_FRAC);
+                const padY = Math.round(size.y * HEATMAP_PAD_FRAC);
+
+                const tlLayer = map.containerPointToLayerPoint([-padX, -padY]);
+                const brLayer = map.containerPointToLayerPoint([size.x + padX, size.y + padY]);
+
+                const totalW = brLayer.x - tlLayer.x;
+                const totalH = brLayer.y - tlLayer.y;
+
+                L.DomUtil.setPosition(this._canvas, tlLayer);
+
+                if (this._canvas.width !== totalW) {
+                    this._canvas.width = totalW;
+                    if (this._heat) this._heat._width = totalW;
+                }
+                if (this._canvas.height !== totalH) {
+                    this._canvas.height = totalH;
+                    if (this._heat) this._heat._height = totalH;
+                }
+
+                this._heatBufBounds = L.bounds(tlLayer, brLayer);
+                this._heatBufZoom = map.getZoom();
+                this._redraw();
+            };
+
+            L.HeatLayer.prototype._redraw = function () {
+                if (!this._map || !this._heat || !this._heatBufBounds) return;
+
+                const map = this._map;
+                const heat = this._heat;
+                const r = heat._r;
+                const tl = this._heatBufBounds.min;
+                const totalW = this._canvas.width;
+                const totalH = this._canvas.height;
+                const cellSize = r / 2;
+                const grid = [];
+                const data = [];
+                const maxIntensity = (this.options && this.options.max) || 1.0;
+
+                for (let i = 0, len = this._latlngs.length; i < len; i++) {
+                    const ll = this._latlngs[i];
+                    const p = map.latLngToLayerPoint(ll);
+                    const cx = p.x - tl.x;
+                    const cy = p.y - tl.y;
+
+                    if (cx < -r || cy < -r || cx > totalW + r || cy > totalH + r) continue;
+
+                    const xi = Math.floor(cx / cellSize) + 2;
+                    const yi = Math.floor(cy / cellSize) + 2;
+                    const alt = ll.alt !== undefined
+                        ? ll.alt
+                        : (ll[2] !== undefined ? +ll[2] : 1);
+
+                    grid[yi] = grid[yi] || [];
+                    const cell = grid[yi][xi];
+                    if (!cell) {
+                        grid[yi][xi] = [cx, cy, alt];
+                    } else {
+                        cell[0] = (cell[0] * cell[2] + cx * alt) / (cell[2] + alt);
+                        cell[1] = (cell[1] * cell[2] + cy * alt) / (cell[2] + alt);
+                        cell[2] += alt;
+                    }
+                }
+
+                for (let i = 0, len = grid.length; i < len; i++) {
+                    if (!grid[i]) continue;
+                    for (let j = 0, len2 = grid[i].length; j < len2; j++) {
+                        const cell = grid[i][j];
+                        if (cell) {
+                            data.push([
+                                Math.round(cell[0]),
+                                Math.round(cell[1]),
+                                Math.min(cell[2], maxIntensity)
+                            ]);
+                        }
+                    }
+                }
+
+                heat.data(data).draw((this.options && this.options.minOpacity) || 0.05);
+            };
+        })();
+
         // Constants
         const OAK_PARK_VILLAGE_HALL_LAT = 41.87984134058715;
         const OAK_PARK_VILLAGE_HALL_LNG = -87.7789930902372;
@@ -401,9 +528,17 @@ async function loadZonesCombined() {
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const gj = await resp.json();
 
+  // Dedicated canvas renderer for zones with generous padding. Default Leaflet
+  // padding is 0.1 (canvas is 10% bigger than the viewport), which forces a
+  // full repaint whenever the user pans more than a small distance. Padding 1.0
+  // makes the canvas 3x the viewport in each dimension, so almost any pan stays
+  // within the buffer and only translates the existing canvas.
+  const zonesRenderer = L.canvas({ pane: ZONES_PANE, padding: 1.0 });
+
   let idx = 0;
   const layer = L.geoJSON(gj, {
     pane: ZONES_PANE,
+    renderer: zonesRenderer,
     style: (feature) => zoneStyle(zoneColorByProp(feature, idx++)),
     // Optional: labels in the center of each polygon
     onEachFeature: (feature, l) => {
@@ -736,26 +871,11 @@ async function initializeDuckDB() {
         }
     }
 
-    // Patch leaflet-heat to request a Canvas2D context with willReadFrequently for better getImageData perf
-    (function patchLeafletHeatWillReadFrequently() {
-    if (!window.L || !L.HeatLayer) return;
-
-    const origOnAdd = L.HeatLayer.prototype.onAdd;
-    L.HeatLayer.prototype.onAdd = function (map) {
-        origOnAdd.call(this, map);
-        try {
-        if (this._canvas && this._canvas.getContext) {
-            const ctx = this._canvas.getContext('2d', { willReadFrequently: true });
-            if (ctx && this._heat) {
-            this._heat._ctx = ctx; // swap simpleheat context
-            }
-        }
-        } catch (e) {
-        // safe to ignore if upstream changes
-        console.debug('leaflet-heat willReadFrequently patch skipped:', e);
-        }
-    };
-    })();
+    // (Note) The willReadFrequently context hint is applied earlier via the
+    // patchHeatmapCanvas IIFE near the top of this script, which intercepts
+    // getContext() before simpleheat's first call. A second getContext('2d', {...})
+    // call is a no-op per spec (returns the existing context regardless of attributes),
+    // so a redundant onAdd-time patch was removed here.
 
     // --- Database Loading and Application Initialization ---
     updateLoadStatus(`DuckDB instantiated from ${currentAttemptSource}, fetching database file...`);
@@ -1131,13 +1251,91 @@ async function initializeDuckDB() {
                 updateWhenIdle: isMobile,
                 // Skip intermediate-zoom tile fetches during zoom animations; only request the final zoom.
                 updateWhenZooming: false,
-                keepBuffer: isMobile ? 2 : 4,
+                keepBuffer: isMobile ? 2 : 6,
                 detectRetina: false,
                 crossOrigin: true
             }).addTo(map);
 
+            setupTilePrefetch(map);
+
             // Initialize apply filters button
             document.getElementById('applyFilters').addEventListener('click', applyFilters);
+        }
+
+        /*
+          Conservative speculative tile prefetch on idle.
+
+          After the user stops panning for PREFETCH_IDLE_MS, request the outer
+          ring of tiles immediately around the viewport so the next pan into
+          neighbouring territory hits the Service Worker / browser cache instead
+          of the network. Filters out tiles outside the 5-mile cache radius so
+          we don't make uncached OSM requests.
+        */
+        function setupTilePrefetch(map) {
+            const PREFETCH_IDLE_MS = 1000;
+            const TILE_SIZE = 256;
+            const RADIUS_METERS = 5 * 1609.344;
+            const RADIUS_MARGIN_M = 500;
+
+            let prefetchTimer = null;
+
+            function tileCenterLatLng(z, x, y) {
+                const n = Math.PI - 2 * Math.PI * (y + 0.5) / Math.pow(2, z);
+                const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+                const lng = (x + 0.5) / Math.pow(2, z) * 360 - 180;
+                return [lat, lng];
+            }
+
+            function distMeters(lat1, lng1, lat2, lng2) {
+                const R = 6371008.8;
+                const toRad = d => d * Math.PI / 180;
+                const dLat = toRad(lat2 - lat1);
+                const dLng = toRad(lng2 - lng1);
+                const a = Math.sin(dLat / 2) ** 2 +
+                          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                          Math.sin(dLng / 2) ** 2;
+                return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+
+            function prefetchOuterRing() {
+                const z = map.getZoom();
+                if (z < 11 || z > 18) return;
+
+                const bounds = map.getPixelBounds();
+                const minX = Math.floor(bounds.min.x / TILE_SIZE) - 1;
+                const maxX = Math.floor(bounds.max.x / TILE_SIZE) + 1;
+                const minY = Math.floor(bounds.min.y / TILE_SIZE) - 1;
+                const maxY = Math.floor(bounds.max.y / TILE_SIZE) + 1;
+
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        // Outer ring only - skip interior (those are loaded by Leaflet).
+                        if (x > minX && x < maxX && y > minY && y < maxY) continue;
+
+                        const [lat, lng] = tileCenterLatLng(z, x, y);
+                        const d = distMeters(
+                            lat, lng,
+                            OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG
+                        );
+                        if (d > RADIUS_METERS + RADIUS_MARGIN_M) continue;
+
+                        const url = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+                        fetch(url, { mode: 'cors' }).catch(() => {});
+                    }
+                }
+            }
+
+            map.on('movestart zoomstart', () => {
+                if (prefetchTimer) {
+                    clearTimeout(prefetchTimer);
+                    prefetchTimer = null;
+                }
+            });
+
+            map.on('moveend', () => {
+                if (prefetchTimer) clearTimeout(prefetchTimer);
+                prefetchTimer = setTimeout(prefetchOuterRing, PREFETCH_IDLE_MS);
+            });
         }
         
         async function applyFilters() {
@@ -1633,6 +1831,13 @@ async function initializeDuckDB() {
                     if (registration.active) {
                         registration.active.postMessage({ type: 'tile-cache-stats' });
                     }
+
+                    // Pre-warm: ping every 25s so the SW doesn't shut down between
+                    // user pans (browsers idle-terminate SWs around 30s without events).
+                    setInterval(() => {
+                        const sw = navigator.serviceWorker.controller || registration.active;
+                        if (sw) sw.postMessage({ type: 'ping' });
+                    }, 25000);
                 })
                 .catch(error => {
                     console.warn('[SW] Oak Park OSM tile cache registration failed:', error);
