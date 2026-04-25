@@ -324,8 +324,12 @@ self.addEventListener('fetch', event => {
 });
 
 // Debug hook: page can postMessage({ type: 'tile-cache-stats' }) to log counts.
+// 'ping' messages keep the SW alive across idle gaps so the next tile fetch
+// doesn't pay cold-start latency.
 self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'tile-cache-stats') {
+    if (!event.data) return;
+    if (event.data.type === 'tile-cache-stats') {
         logCacheStats();
     }
+    // 'ping' is a no-op; just receiving the message keeps us alive.
 });
