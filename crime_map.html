@@ -73,10 +73,13 @@
 
   <!-- clickable header -->
   <div class="panel-header" id="panelHeader">
-  <button id="panelToggle" class="panel-toggle" aria-expanded="true">
+  <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true">
     HIDE ▾
   </button>
   <span class="panel-title">Oak&nbsp;Park&nbsp;Crime&nbsp;Map</span>
+  <button id="centerOakPark" class="panel-center" type="button" aria-label="Center map on Oak Park" title="Center map on Oak Park" disabled>
+    Center
+  </button>
     </div>
 
   <!-- everything collapses inside this body -->
@@ -223,6 +226,9 @@
             requested per pause, scoped to the 5-mile cache radius.
           - Two-tier Service Worker tile cache (~80 MB ceiling on disk):
             backbone + LRU-trimmed hot tier for fast repeat views.
+          - DuckDB runtime cache: the WASM/module/worker assets are cached.
+          - DuckDB data cache: .duckdb files are pinned for 11 hours, matching
+            the twice-daily update cadence.
           - SW pre-warm ping every 25s to avoid cold-start latency.
 
           Net effect: total page memory is larger than it used to be (the
@@ -233,7 +239,7 @@
           Knobs to tune if the memory cost ever becomes a problem:
           - HEATMAP_PAD_FRAC in patchHeatLayerBuffered (currently 0.75)
           - padding on the zonesRenderer in loadZonesCombined (currently 1.0)
-          - keepBuffer on the tile layer (currently 6 on desktop)
+          - keepBuffer on the tile layer (currently 8 on desktop)
           - MAX_HOT_CACHE_ENTRIES in osm-tile-cache-sw.js (currently 5000)
         */
 
@@ -321,8 +327,28 @@
                 }
 
                 this._heatBufBounds = L.bounds(tlLayer, brLayer);
+                this._heatBufLatLngBounds = L.latLngBounds(
+                    map.layerPointToLatLng(tlLayer),
+                    map.layerPointToLatLng(brLayer)
+                );
                 this._heatBufZoom = map.getZoom();
                 this._redraw();
+            };
+
+            L.HeatLayer.prototype._animateZoom = function (e) {
+                if (!this._map || !this._canvas || !this._heatBufLatLngBounds) return;
+
+                const scale = this._map.getZoomScale(e.zoom);
+                const offset = this._map
+                    ._latLngBoundsToNewLayerBounds(this._heatBufLatLngBounds, e.zoom, e.center)
+                    .min;
+
+                if (L.DomUtil.setTransform) {
+                    L.DomUtil.setTransform(this._canvas, offset, scale);
+                } else {
+                    this._canvas.style[L.DomUtil.TRANSFORM] =
+                        `${L.DomUtil.getTranslateString(offset)} scale(${scale})`;
+                }
             };
 
             L.HeatLayer.prototype._redraw = function () {
@@ -401,6 +427,8 @@
         let pendingHashState = null;
         let hydratingFromHash = false; // skip writing hash back during initial load
         let firstRenderDone = false;   // prevents duplicate initial queries
+        let userHasMovedMap = false;   // suppress late async fitBounds jumps after interaction
+        let programmaticMapMoveDepth = 0;
 
         //Zone sstuff
         let zones2024LayerGroup = null;          // L.LayerGroup containing all zones
@@ -508,6 +536,7 @@
             /*Accordion click handler */
             const panel       = document.getElementById('controlPanel');
             const panelToggle = document.getElementById('panelToggle');
+            const centerOakPark = document.getElementById('centerOakPark');
 
             panelToggle.addEventListener('click', (e)=>{
             e.stopPropagation();                    // keep click from bubbling
@@ -516,6 +545,10 @@
             const expanded = !panel.classList.contains('collapsed');
             panelToggle.setAttribute('aria-expanded', expanded);
             panelToggle.textContent = expanded ? 'HIDE ▾' : 'SHOW ▴';
+            });
+            centerOakPark.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            centerMapOnOakPark();
             });
             
             // DOMContentLoaded: read hash -> set UI (except offense, which waits for dropdown)
@@ -530,8 +563,11 @@
             }
             }
 
-            // Initialize DuckDB
-            initializeDuckDB();
+            // Initialize DuckDB after the app service worker has had a short
+            // chance to claim the page. On repeat visits this lets the SW serve
+            // the cached DuckDB WASM before the runtime asks for it.
+            const swReady = window.tileSW?.ready ? window.tileSW.ready(1200) : Promise.resolve();
+            Promise.resolve(swReady).finally(() => initializeDuckDB());
 
             zones2024Ready = (async () => {
                 try { await loadZonesCombined(); registerZonesOverlayIfReady(); }
@@ -779,6 +815,146 @@ function updateHashFromUI() {
   }
 }
 
+function centerMapOnOakPark() {
+    if (!map) return false;
+
+    if (typeof map.stop === 'function') {
+        map.stop();
+    }
+
+    userHasMovedMap = true;
+    withProgrammaticMapMove(() => {
+        map.setView(
+            [OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG],
+            13,
+            { animate: false }
+        );
+    });
+    return true;
+}
+
+function withProgrammaticMapMove(callback) {
+    programmaticMapMoveDepth += 1;
+    try {
+        return callback();
+    } finally {
+        programmaticMapMoveDepth -= 1;
+    }
+}
+
+window.opCrimeMap = Object.assign(window.opCrimeMap || {}, {
+    centerOnOakPark: centerMapOnOakPark,
+    getMapState() {
+        if (!map) return null;
+        const center = map.getCenter();
+        return {
+            center: { lat: center.lat, lng: center.lng },
+            zoom: map.getZoom()
+        };
+    }
+});
+
+const DUCKDB_RUNTIME_CACHE_NAME = 'op-crime-duckdb-runtime-v1';
+const DUCKDB_RUNTIME_MIME = {
+    'duckdb-browser-eh.worker.js': 'application/javascript',
+    'duckdb-eh.wasm': 'application/wasm'
+};
+
+function runtimeFileName(url) {
+    try {
+        const parsed = new URL(url, window.location.href);
+        return parsed.pathname.slice(parsed.pathname.lastIndexOf('/') + 1);
+    } catch (_) {
+        return '';
+    }
+}
+
+function isCrossOriginRuntime(wasmUrl, workerUrl) {
+    try {
+        return (
+            new URL(wasmUrl, window.location.href).origin !== window.location.origin ||
+            new URL(workerUrl, window.location.href).origin !== window.location.origin
+        );
+    } catch (_) {
+        return false;
+    }
+}
+
+function typedRuntimeBlob(parts, url, fallbackType) {
+    const fileName = runtimeFileName(url);
+    return new Blob(parts, { type: DUCKDB_RUNTIME_MIME[fileName] || fallbackType || 'application/octet-stream' });
+}
+
+async function runtimeCacheMatch(cache, request, url) {
+    return await cache.match(request, { ignoreVary: true }) ||
+        await cache.match(url, { ignoreVary: true });
+}
+
+async function cachedRuntimeBlobUrl(url, label, fallbackType) {
+    const cache = await caches.open(DUCKDB_RUNTIME_CACHE_NAME);
+    const request = new Request(url, { mode: 'cors', credentials: 'omit' });
+    const cachedResponse = await runtimeCacheMatch(cache, request, url);
+
+    if (cachedResponse) {
+        console.log(`[DB Init] DuckDB ${label} loaded from CacheStorage.`);
+        const cachedBlob = await cachedResponse.blob();
+        const blob = cachedBlob.type ? cachedBlob : typedRuntimeBlob([cachedBlob], url, fallbackType);
+        return URL.createObjectURL(blob);
+    }
+
+    console.log(`[DB Init] DuckDB ${label} cache miss; downloading ${url}`);
+    const response = await fetch(request);
+    if (!response.ok || response.type === 'opaque') {
+        throw new Error(`DuckDB ${label} fetch failed: ${response.status} ${response.statusText}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const headers = new Headers(response.headers);
+    if (!headers.has('content-type')) {
+        headers.set('content-type', DUCKDB_RUNTIME_MIME[runtimeFileName(url)] || fallbackType || 'application/octet-stream');
+    }
+    headers.set('sw-cached-at', String(Date.now()));
+
+    const cachePut = cache.put(request, new Response(buffer.slice(0), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+    })).catch(err => {
+        console.warn(`[DB Init] DuckDB ${label} CacheStorage write failed:`, err);
+    });
+
+    const blob = typedRuntimeBlob([buffer], url, fallbackType);
+    await cachePut;
+    return URL.createObjectURL(blob);
+}
+
+async function prepareDuckDBRuntimeUrls(wasmUrl, workerUrl, sourceName) {
+    if (!('caches' in window) || !isCrossOriginRuntime(wasmUrl, workerUrl)) {
+        return { wasmUrl, workerUrl, sourceName, revoke() {} };
+    }
+
+    try {
+        updateLoadStatus(`Checking DuckDB runtime cache for ${sourceName}...`);
+        const [cachedWorkerUrl, cachedWasmUrl] = await Promise.all([
+            cachedRuntimeBlobUrl(workerUrl, 'worker', 'application/javascript'),
+            cachedRuntimeBlobUrl(wasmUrl, 'WASM', 'application/wasm')
+        ]);
+
+        return {
+            wasmUrl: cachedWasmUrl,
+            workerUrl: cachedWorkerUrl,
+            sourceName: `${sourceName} (CacheStorage)`,
+            revoke() {
+                URL.revokeObjectURL(cachedWorkerUrl);
+                URL.revokeObjectURL(cachedWasmUrl);
+            }
+        };
+    } catch (error) {
+        console.warn(`[DB Init] DuckDB runtime CacheStorage path failed for ${sourceName}; using original URLs.`, error);
+        return { wasmUrl, workerUrl, sourceName, revoke() {} };
+    }
+}
+
 async function initializeDuckDB() {
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.INFO);
     let db_instance;
@@ -815,6 +991,14 @@ async function initializeDuckDB() {
 
         if (worker) { worker.terminate(); worker = undefined; }
 
+        const runtimeUrls = await prepareDuckDBRuntimeUrls(wasmUrl, workerUrl, sourceName);
+        const finalWasmUrl = runtimeUrls.wasmUrl;
+        const finalWorkerUrl = runtimeUrls.workerUrl;
+
+        if (finalWasmUrl !== wasmUrl || finalWorkerUrl !== workerUrl) {
+            console.log(`[DB Init]   Runtime cache source: ${runtimeUrls.sourceName}`);
+        }
+
         // const workerBlob = new Blob([`importScripts("${workerUrl}");`], { type: 'application/javascript' });
         // worker = new Worker(URL.createObjectURL(workerBlob));
         // db_instance = new duckdb.AsyncDuckDB(logger, worker);
@@ -823,18 +1007,22 @@ async function initializeDuckDB() {
         // currentAttemptSource = sourceName;
         // 1) Try creating the worker directly by URL
         try {
-            worker = new Worker(workerUrl, { type: 'classic' }); // classic worker
+            worker = new Worker(finalWorkerUrl, { type: 'classic' }); // classic worker
         } catch (e1) {
             console.warn('[DB Init] Direct Worker() failed, trying blob importScripts fallback:', e1);
             // 2) Fallback: Blob + importScripts (works when URL creation is blocked but fetch is OK)
-            const workerBlob = new Blob([`importScripts("${workerUrl}");`], { type: 'application/javascript' });
+            const workerBlob = new Blob([`importScripts(${JSON.stringify(finalWorkerUrl)});`], { type: 'application/javascript' });
             worker = new Worker(URL.createObjectURL(workerBlob));
         }
 
-        db_instance = new duckdb.AsyncDuckDB(logger, worker);
-        await db_instance.instantiate(wasmUrl); // may throw if wasm path is wrong/inaccessible
-        console.log(`[DB Init] Successfully initiated DuckDB from ${sourceName}.`);
-        currentAttemptSource = sourceName;
+        try {
+            db_instance = new duckdb.AsyncDuckDB(logger, worker);
+            await db_instance.instantiate(finalWasmUrl); // may throw if wasm path is wrong/inaccessible
+            console.log(`[DB Init] Successfully initiated DuckDB from ${runtimeUrls.sourceName}.`);
+            currentAttemptSource = runtimeUrls.sourceName;
+        } finally {
+            runtimeUrls.revoke();
+        }
     }
 
     // --- Loading Strategy ---
@@ -1269,10 +1457,28 @@ async function initializeDuckDB() {
             // maxZoom: 18 matches the tile cache's upper bound and gives building-level detail.
             // preferCanvas: true renders vector layers (zones, GeoJSON) to one canvas instead of
             // per-feature SVG nodes - major pan/zoom speedup with the policing zones layer on.
-            map = L.map('map', { maxZoom: 18, preferCanvas: true }).setView(
+            map = L.map('map', {
+                maxZoom: 18,
+                preferCanvas: true,
+                // Keep wheel/double-click zoom centered. Pointer-anchored zoom can
+                // make all overlays appear to drift sideways when the cursor is
+                // off-center or over the control panel.
+                scrollWheelZoom: 'center',
+                doubleClickZoom: 'center',
+                // Avoid post-drag glide. On this dense map it can feel like a
+                // late jump because tiles/markers/heatmap are still settling.
+                inertia: false
+            }).setView(
                 [OAK_PARK_VILLAGE_HALL_LAT, OAK_PARK_VILLAGE_HALL_LNG],
                 13
             );
+            const centerOakPark = document.getElementById('centerOakPark');
+            if (centerOakPark) centerOakPark.disabled = false;
+            map.on('dragstart zoomstart', () => {
+                if (programmaticMapMoveDepth === 0) {
+                    userHasMovedMap = true;
+                }
+            });
 
             //policing zones
             const zonesPane = map.createPane(ZONES_PANE);
@@ -1284,11 +1490,11 @@ async function initializeDuckDB() {
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
                 maxZoom: 18,
-                // Load tiles while panning on desktop; keep Leaflet's mobile default to save bandwidth/CPU.
+                // Load tiles while panning on desktop; keep mobile idle-only for now.
                 updateWhenIdle: isMobile,
                 // Skip intermediate-zoom tile fetches during zoom animations; only request the final zoom.
                 updateWhenZooming: false,
-                keepBuffer: isMobile ? 2 : 6,
+                keepBuffer: isMobile ? 2 : 8,
                 detectRetina: false,
                 crossOrigin: true
             }).addTo(map);
@@ -1542,6 +1748,7 @@ async function initializeDuckDB() {
             const clusterOpts = isMobile
             ? {
                 showCoverageOnHover: false,
+                animate: false,
                 maxClusterRadius: 70,          // merge a bit more on mobile to reduce DOM work
                 spiderfyOnMaxZoom: false,      // avoid heavy spiderfy animation on phones
                 disableClusteringAtZoom: 17,
@@ -1550,11 +1757,12 @@ async function initializeDuckDB() {
                 }
             : {
                 showCoverageOnHover: false,
+                animate: false,
                 maxClusterRadius: 50,
                 spiderfyOnMaxZoom: true,
                 disableClusteringAtZoom: 18,
                 chunkedLoading: true,
-                animateAddingMarkers: true      // desktop keeps animations
+                animateAddingMarkers: false
                 };
 
             // Create marker cluster group
@@ -1655,10 +1863,14 @@ async function initializeDuckDB() {
                     position: 'topleft'
                 }).addTo(map);
             }
-            // Fit map to show all markers if we have any
-            if (markers.length > 0) {
+            // Fit map to show all markers only while the user has not taken
+            // control of the viewport. Otherwise an async query finishing after
+            // a drag/zoom can look like a random pan jump.
+            if (markers.length > 0 && !userHasMovedMap) {
                 const group = new L.featureGroup(markers);
-                map.fitBounds(group.getBounds(), {padding: [50, 50]});
+                withProgrammaticMapMove(() => {
+                    map.fitBounds(group.getBounds(), { padding: [50, 50], animate: false });
+                });
             }
         }
         
@@ -1790,26 +2002,34 @@ async function initializeDuckDB() {
 
     <script>
     /*
-      Tile Service Worker A/B toggle.
+      App Service Worker A/B toggle.
       Default: ON. Override via localStorage flag 'op_disable_sw' = '1'.
       Console API:
-        window.tileSW.off()    - disable SW + unregister + clear tile caches; reload to test
-        window.tileSW.on()     - re-enable SW; reload to test
+        window.tileSW.off()    - disable SW + unregister + clear tile/DuckDB caches
+        window.tileSW.on()     - re-enable SW
         window.tileSW.status() - print current state
     */
     (function () {
         const FLAG_KEY = 'op_disable_sw';
+        const SW_URL = './osm-tile-cache-sw.js';
+        const CACHE_PREFIXES = [
+            'op-crime-osm-tiles-',
+            'op-crime-duckdb-runtime-',
+            'op-crime-duckdb-data-'
+        ];
+        let registrationPromise = null;
+        let pingTimer = null;
 
         function isDisabled() {
             try { return localStorage.getItem(FLAG_KEY) === '1'; }
             catch (_) { return false; }
         }
 
-        async function clearTileCaches() {
+        async function clearAppCaches() {
             if (!('caches' in window)) return;
             const names = await caches.keys();
             await Promise.all(
-                names.filter(n => n.startsWith('op-crime-osm-tiles-'))
+                names.filter(n => CACHE_PREFIXES.some(prefix => n.startsWith(prefix)))
                      .map(n => caches.delete(n))
             );
         }
@@ -1820,23 +2040,114 @@ async function initializeDuckDB() {
             await Promise.all(regs.map(r => r.unregister()));
         }
 
-        window.tileSW = {
+        function logStorageEstimate() {
+            if (!navigator.storage || !navigator.storage.estimate) return;
+            navigator.storage.estimate().then(est => {
+                const usedMB = (est.usage / 1048576).toFixed(1);
+                const quotaMB = (est.quota / 1048576).toFixed(0);
+                console.log(`[Storage] ${usedMB} MB used of ${quotaMB} MB quota`);
+            }).catch(() => {});
+        }
+
+        async function requestPersistentStorage() {
+            if (!navigator.storage || !navigator.storage.persisted || !navigator.storage.persist) return;
+            try {
+                const alreadyPersistent = await navigator.storage.persisted();
+                if (alreadyPersistent) {
+                    console.log('[Storage] persistent cache already granted');
+                    return;
+                }
+                const granted = await navigator.storage.persist();
+                console.log(`[Storage] persistent cache ${granted ? 'granted' : 'not granted'}`);
+            } catch (_) {
+                // Persistence is opportunistic. The normal cache still works if this fails.
+            }
+        }
+
+        function postCacheStats(registration) {
+            const sw = navigator.serviceWorker.controller ||
+                registration.active ||
+                registration.waiting ||
+                registration.installing;
+            if (sw) sw.postMessage({ type: 'app-cache-stats' });
+        }
+
+        function startPing(registration) {
+            if (pingTimer) return;
+            pingTimer = setInterval(() => {
+                const sw = navigator.serviceWorker.controller || registration.active;
+                if (sw) sw.postMessage({ type: 'ping' });
+            }, 25000);
+        }
+
+        function waitForController(timeoutMs) {
+            if (navigator.serviceWorker.controller) return Promise.resolve();
+
+            return new Promise(resolve => {
+                const timer = setTimeout(resolve, timeoutMs);
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    clearTimeout(timer);
+                    resolve();
+                }, { once: true });
+            });
+        }
+
+        async function registerAppServiceWorker() {
+            if (!('serviceWorker' in navigator) || isDisabled()) return null;
+            if (registrationPromise) return registrationPromise;
+
+            registrationPromise = navigator.serviceWorker.register(SW_URL)
+                .then(registration => {
+                    console.log('[SW] Oak Park app cache registered:', registration.scope);
+                    logStorageEstimate();
+                    requestPersistentStorage();
+                    postCacheStats(registration);
+                    startPing(registration);
+                    return registration;
+                })
+                .catch(error => {
+                    registrationPromise = null;
+                    console.warn('[SW] Oak Park app cache registration failed:', error);
+                    return null;
+                });
+
+            return registrationPromise;
+        }
+
+        window.tileSW = window.appSW = {
             off: async function () {
                 try { localStorage.setItem(FLAG_KEY, '1'); } catch (_) {}
+                if (pingTimer) {
+                    clearInterval(pingTimer);
+                    pingTimer = null;
+                }
                 await unregisterAll();
-                await clearTileCaches();
-                console.log('[SW] DISABLED. Reload the page to test without the tile cache.');
+                await clearAppCaches();
+                registrationPromise = null;
+                console.log('[SW] DISABLED. Reload the page to test without app caching.');
             },
-            on: function () {
-                try { localStorage.setItem(FLAG_KEY, '0'); } catch (_) {}
-                console.log('[SW] ENABLED. Reload the page to register the tile cache.');
+            on: async function () {
+                try { localStorage.removeItem(FLAG_KEY); } catch (_) {}
+                const registration = await registerAppServiceWorker();
+                console.log('[SW] ENABLED. App caching is active for controlled pages.');
+                return registration;
+            },
+            clear: clearAppCaches,
+            register: registerAppServiceWorker,
+            ready: async function (timeoutMs = 1200) {
+                const registration = await registerAppServiceWorker();
+                if (!registration) return null;
+                try { await navigator.serviceWorker.ready; } catch (_) {}
+                await waitForController(timeoutMs);
+                return registration;
             },
             status: function () {
                 const enabled = !isDisabled();
-                console.log(`[SW] tile cache flag: ${enabled ? 'ENABLED (default)' : 'DISABLED'}`);
+                console.log(`[SW] app cache flag: ${enabled ? 'ENABLED (default)' : 'DISABLED'}`);
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.getRegistrations().then(regs => {
                         console.log(`[SW] active registrations: ${regs.length}`);
+                        regs.forEach(reg => postCacheStats(reg));
                     });
                 }
                 return enabled;
@@ -1846,40 +2157,12 @@ async function initializeDuckDB() {
         if (!('serviceWorker' in navigator)) return;
 
         if (isDisabled()) {
-            // Make sure no stale SW from a previous session is still controlling the page.
             unregisterAll();
-            console.log('[SW] tile cache DISABLED via localStorage. Run window.tileSW.on() to re-enable.');
+            console.log('[SW] app cache DISABLED via localStorage. Run window.tileSW.on() to re-enable.');
             return;
         }
 
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./osm-tile-cache-sw.js')
-                .then(registration => {
-                    console.log('[SW] Oak Park OSM tile cache registered:', registration.scope);
-
-                    if (navigator.storage && navigator.storage.estimate) {
-                        navigator.storage.estimate().then(est => {
-                            const usedMB = (est.usage / 1048576).toFixed(1);
-                            const quotaMB = (est.quota / 1048576).toFixed(0);
-                            console.log(`[Storage] ${usedMB} MB used of ${quotaMB} MB quota`);
-                        });
-                    }
-
-                    if (registration.active) {
-                        registration.active.postMessage({ type: 'tile-cache-stats' });
-                    }
-
-                    // Pre-warm: ping every 25s so the SW doesn't shut down between
-                    // user pans (browsers idle-terminate SWs around 30s without events).
-                    setInterval(() => {
-                        const sw = navigator.serviceWorker.controller || registration.active;
-                        if (sw) sw.postMessage({ type: 'ping' });
-                    }, 25000);
-                })
-                .catch(error => {
-                    console.warn('[SW] Oak Park OSM tile cache registration failed:', error);
-                });
-        });
+        registerAppServiceWorker();
     })();
     </script>
 </body>

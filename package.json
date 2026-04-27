@@ -1,0 +1,13 @@
+{
+  "name": "oak-park-crime",
+  "private": true,
+  "scripts": {
+    "test": "npm run test:ci",
+    "test:ci": "npm run test:syntax && npm run test:smoke",
+    "test:smoke": "playwright test",
+    "test:syntax": "node --check osm-tile-cache-sw.js && node --check tests/static-server.mjs && node --check playwright.config.mjs && node --check tests/crime-map.spec.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
