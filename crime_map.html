@@ -986,6 +986,10 @@ async function initializeDuckDB() {
     console.log(`[DB Init] Detected hostname: ${hostname}, origin: ${origin}`);
     updateLoadStatus("Initializing DuckDB - Please wait...");
 
+    function sameOriginDuckDBAssetUrl(fileName) {
+        return new URL(`${STANDARD_WEB_ASSET_PATH_PREFIX}${fileName}`, origin).href;
+    }
+
     async function tryInstantiate(wasmUrl, workerUrl, sourceName) {
         console.log(`[DB Init] Attempting to load from ${sourceName}`);
         console.log(`[DB Init]   WASM Path: ${wasmUrl}`);
@@ -1063,19 +1067,40 @@ async function initializeDuckDB() {
         }
     }
     
-    // 3. R2 via Worker Proxy (Specifically for Cloudflare Pages domains if other attempts failed or weren't applicable)
+    // 3. R2 via Worker Proxy for the large WASM. Prefer the same-origin worker JS
+    // so browser/SW caching can reuse it and cross-origin Worker() restrictions
+    // don't depend on the proxy's JS response headers.
     if (!db_instance && (hostname.endsWith(".pages.dev") || hostname.endsWith("jesse-anderson.net"))) {
         // This ensures that if jesse-anderson.net was GitHub Pages and failed, it doesn't try R2.
-        // But if jesse-anderson.net is Cloudflare Pages, the above local attempt *should* fail (404), then this R2 path is tried.
-        // For *.pages.dev, the local attempt will also fail (404), then this is tried.
-        currentAttemptSource = "R2 (via Worker Proxy)";
+        // But if jesse-anderson.net is Cloudflare Pages, the above local attempt *should* fail (404),
+        // then this R2 path is tried. For *.pages.dev, the local attempt will also fail (404),
+        // then this is tried.
+        //
+        // Current preferred shape: keep only the oversized WASM behind the proxy and use the
+        // same-origin worker JS so normal browser/SW caching can reuse it across page loads.
+        currentAttemptSource = "R2 WASM + local worker";
         try {
             chosenWasmPath = R2_PROXY_BASE_URL + WASM_FILE_NAME;
-            chosenWorkerPath = R2_PROXY_BASE_URL + WORKER_FILE_NAME;
+            chosenWorkerPath = sameOriginDuckDBAssetUrl(WORKER_FILE_NAME);
             await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
-        } catch (r2ProxyError) {
-            console.error(`[DB Init] Failed to load from ${currentAttemptSource}:`, r2ProxyError);
+        } catch (r2LocalWorkerError) {
+            console.warn(`[DB Init] Failed to load from ${currentAttemptSource}; trying proxied worker fallback.`, r2LocalWorkerError);
             db_instance = null;
+        }
+
+        if (!db_instance) {
+            // Carry-over fallback for the previous Cloudflare Pages behavior:
+            // if the same-origin worker is unavailable for any reason, try both
+            // DuckDB runtime files through the proxy before falling through to CDN.
+            currentAttemptSource = "R2 (via Worker Proxy)";
+            try {
+                chosenWasmPath = R2_PROXY_BASE_URL + WASM_FILE_NAME;
+                chosenWorkerPath = R2_PROXY_BASE_URL + WORKER_FILE_NAME;
+                await tryInstantiate(chosenWasmPath, chosenWorkerPath, currentAttemptSource);
+            } catch (r2ProxyError) {
+                console.error(`[DB Init] Failed to load from ${currentAttemptSource}:`, r2ProxyError);
+                db_instance = null;
+            }
         }
     }
 

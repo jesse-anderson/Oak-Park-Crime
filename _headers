@@ -13,11 +13,13 @@
   Cache-Control: public, max-age=31536000, immutable
 
 # Worker JS files
+# Long-lived because DuckDB runtime filenames are stable in this repo. If these
+# files are upgraded in place, also version the URL or rename the file.
 /js/duckdb/*.js
   Content-Type: application/javascript
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Opener-Policy: same-origin
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=31536000, immutable
 
 # Database files: data updates twice per day, so pin for 11 hours.
 /db/*.duckdb

@@ -43,7 +43,7 @@ function headersFor(filePath) {
   if (ext === '.wasm') {
     headers['Cache-Control'] = 'public, max-age=31536000, immutable';
   } else if (filePath.includes(`${path.sep}js${path.sep}duckdb${path.sep}`) && ext === '.js') {
-    headers['Cache-Control'] = 'public, max-age=86400';
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable';
   } else if (ext === '.duckdb') {
     headers['Cache-Control'] = 'public, max-age=39600';
   } else {
