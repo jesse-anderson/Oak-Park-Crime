@@ -411,6 +411,9 @@
         // Constants
         const OAK_PARK_VILLAGE_HALL_LAT = 41.87984134058715;
         const OAK_PARK_VILLAGE_HALL_LNG = -87.7789930902372;
+        // Browser tile requests use the browser User-Agent. OSM identifies web
+        // traffic through Referer, so keep cross-origin tile requests referable.
+        const OSM_REFERRER_POLICY = 'strict-origin-when-cross-origin';
         
         // Global variables
         let db;
@@ -1496,6 +1499,7 @@ async function initializeDuckDB() {
                 updateWhenZooming: false,
                 keepBuffer: isMobile ? 2 : 8,
                 detectRetina: false,
+                referrerPolicy: OSM_REFERRER_POLICY,
                 crossOrigin: true
             }).addTo(map);
 
@@ -1563,7 +1567,10 @@ async function initializeDuckDB() {
                         if (d > RADIUS_METERS + RADIUS_MARGIN_M) continue;
 
                         const url = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
-                        fetch(url, { mode: 'cors' }).catch(() => {});
+                        fetch(url, {
+                            mode: 'cors',
+                            referrerPolicy: OSM_REFERRER_POLICY
+                        }).catch(() => {});
                     }
                 }
             }
