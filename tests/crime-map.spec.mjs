@@ -74,4 +74,46 @@ test('crime map loads, centers on Oak Park, and populates app caches', async ({ 
     const referer = headers.referer || headers.referrer;
     return referer && referer.startsWith('http://127.0.0.1:');
   })).toBeTruthy();
+
+  await page.selectOption('#dateSelector', 'all');
+  await page.getByRole('button', { name: /apply filters/i }).click();
+  await page.waitForFunction(() => {
+    const countText = document.querySelector('#crimeCount')?.textContent || '0';
+    return Number(countText.replace(/,/g, '')) > 1000;
+  }, null, { timeout: 90000 });
+
+  for (let i = 0; i < 6; i += 1) {
+    const zoom = await page.evaluate(() => window.opCrimeMap.getMapState()?.zoom || 0);
+    if (zoom >= 18) break;
+
+    const clickedClusterSize = await page.evaluate(() => {
+      const largestCluster = [...document.querySelectorAll('.marker-cluster')]
+        .map(el => ({ el, count: Number(el.textContent.trim()) || 0 }))
+        .sort((a, b) => b.count - a.count)[0];
+
+      if (!largestCluster) return 0;
+
+      largestCluster.el.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      }));
+      return largestCluster.count;
+    });
+
+    expect(clickedClusterSize).toBeGreaterThan(1);
+    await page.waitForTimeout(1000);
+  }
+
+  const maxZoomClusterState = await page.evaluate(() => {
+    const clusterCounts = [...document.querySelectorAll('.marker-cluster')]
+      .map(el => Number(el.textContent.trim()) || 0);
+    return {
+      zoom: window.opCrimeMap.getMapState()?.zoom,
+      largestCluster: clusterCounts.length ? Math.max(...clusterCounts) : 0
+    };
+  });
+
+  expect(maxZoomClusterState.zoom).toBe(18);
+  expect(maxZoomClusterState.largestCluster).toBeGreaterThan(1);
 });

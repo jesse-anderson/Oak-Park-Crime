@@ -1751,23 +1751,23 @@ async function initializeDuckDB() {
         
         function addCrimesToMap(crimes) {
             const isMobile = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+            const maxClusterRadius = zoom => zoom >= map.getMaxZoom() ? 1 : (isMobile ? 70 : 50);
+
             // Build cluster options per device
             const clusterOpts = isMobile
             ? {
                 showCoverageOnHover: false,
                 animate: false,
-                maxClusterRadius: 70,          // merge a bit more on mobile to reduce DOM work
+                maxClusterRadius,
                 spiderfyOnMaxZoom: false,      // avoid heavy spiderfy animation on phones
-                disableClusteringAtZoom: 17,
                 chunkedLoading: true,
                 animateAddingMarkers: false     // mobile tweak
                 }
             : {
                 showCoverageOnHover: false,
                 animate: false,
-                maxClusterRadius: 50,
+                maxClusterRadius,
                 spiderfyOnMaxZoom: true,
-                disableClusteringAtZoom: 18,
                 chunkedLoading: true,
                 animateAddingMarkers: false
                 };
