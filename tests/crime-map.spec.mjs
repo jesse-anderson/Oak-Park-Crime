@@ -12,7 +12,10 @@ const transparentPng = Buffer.from(
 );
 
 test('crime map loads, centers on Oak Park, and populates app caches', async ({ page }) => {
+  const tileRequestHeaders = [];
+
   await page.route('https://tile.openstreetmap.org/**', route => {
+    tileRequestHeaders.push(route.request().headers());
     route.fulfill({
       status: 200,
       contentType: 'image/png',
@@ -20,7 +23,9 @@ test('crime map loads, centers on Oak Park, and populates app caches', async ({ 
     });
   });
 
-  await page.goto('/crime_map.html', { waitUntil: 'domcontentloaded' });
+  const response = await page.goto('/crime_map.html', { waitUntil: 'domcontentloaded' });
+  expect(response).not.toBeNull();
+  expect(response.headers()['referrer-policy']).toBe('strict-origin-when-cross-origin');
 
   const acceptButton = page.getByRole('button', { name: /i accept/i });
   if (await acceptButton.isVisible().catch(() => false)) {
@@ -64,4 +69,9 @@ test('crime map loads, centers on Oak Park, and populates app caches', async ({ 
   const cacheNames = await page.evaluate(() => caches.keys());
   expect(cacheNames.some(name => name.startsWith('op-crime-duckdb-runtime-'))).toBeTruthy();
   expect(cacheNames.some(name => name.startsWith('op-crime-duckdb-data-'))).toBeTruthy();
+
+  expect(tileRequestHeaders.some(headers => {
+    const referer = headers.referer || headers.referrer;
+    return referer && referer.startsWith('http://127.0.0.1:');
+  })).toBeTruthy();
 });

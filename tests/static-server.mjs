@@ -36,6 +36,9 @@ function headersFor(filePath) {
     headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
     headers['Cross-Origin-Opener-Policy'] = 'same-origin';
   }
+  if (ext === '.html') {
+    headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+  }
 
   if (ext === '.wasm') {
     headers['Cache-Control'] = 'public, max-age=31536000, immutable';
