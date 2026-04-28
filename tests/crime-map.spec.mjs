@@ -27,6 +27,9 @@ test('crime map loads, centers on Oak Park, and populates app caches', async ({ 
   expect(response).not.toBeNull();
   expect(response.headers()['referrer-policy']).toBe('strict-origin-when-cross-origin');
 
+  const duckdbWorkerResponse = await page.request.get('/js/duckdb/duckdb-browser-eh.worker.js');
+  expect(duckdbWorkerResponse.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+
   const acceptButton = page.getByRole('button', { name: /i accept/i });
   if (await acceptButton.isVisible().catch(() => false)) {
     await acceptButton.click();
