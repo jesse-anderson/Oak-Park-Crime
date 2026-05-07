@@ -130,8 +130,8 @@
         <button id="advancedToggle" class="advanced-toggle" aria-expanded="false">Advanced Search ▾</button>
         <div id="advancedSection" class="advanced-section" style="display:none;">
             <div class="advanced-row">
-            <label class="label" for="searchText">Search descriptions (narrative by default)</label>
-            <input id="searchText" type="text" placeholder="e.g., gun, bicycle, window break">
+            <label class="label" for="searchText">Search selected fields (narrative by default)</label>
+            <input id="searchText" type="text" placeholder="e.g., gun, bicycle, 22-1324">
             <div class="field-group">
                 <span><strong>Match:</strong></span>
                 <select id="searchMode">
@@ -146,6 +146,7 @@
                 <label><input type="checkbox" id="fieldNarrative" checked> Narrative</label>
                 <label><input type="checkbox" id="fieldLocation"> Location</label>
                 <label><input type="checkbox" id="fieldVictim"> Victim</label>
+                <label><input type="checkbox" id="fieldComplaint"> Complaint #</label>
             </div>
             <div class="adv-actions">
                 <button id="applySearch">Apply Search</button>
@@ -525,6 +526,7 @@
             document.getElementById('fieldNarrative').checked = true;
             document.getElementById('fieldLocation').checked = false;
             document.getElementById('fieldVictim').checked = false;
+            document.getElementById('fieldComplaint').checked = false;
             searchStatus.textContent = 'No search active.';
             applyFilters();
             });
@@ -674,6 +676,7 @@ function hydrateUIFromHashPre() {
     set('fieldNarrative', fields.narrative ?? true);
     set('fieldLocation',  fields.location ?? false);
     set('fieldVictim',    fields.victim ?? false);
+    set('fieldComplaint', fields.complaint ?? false);
   }
 
   // Optional: update the status line so users see what's active
@@ -684,6 +687,7 @@ function hydrateUIFromHashPre() {
     if (document.getElementById('fieldNarrative')?.checked) activeFields.push('narrative');
     if (document.getElementById('fieldLocation')?.checked) activeFields.push('location');
     if (document.getElementById('fieldVictim')?.checked) activeFields.push('victim');
+    if (document.getElementById('fieldComplaint')?.checked) activeFields.push('complaint #');
 
     const st = document.getElementById('searchText')?.value || '';
     const md = document.getElementById('searchMode')?.value || 'any';
@@ -719,7 +723,7 @@ function hydrateUIFromHashPost() {
 
 // --- URL hash state helpers ---
 // State shape: { date, customRange, offense, zone, searchText, searchMode,
-//                fields: {offense, narrative, location, victim} }
+//                fields: {offense, narrative, location, victim, complaint} }
 // zone values mirror the <select>: 'all' (no filter), 'unzoned' (zone_id IS NULL),
 // or a stringified zone number '1'..'8'.
 
@@ -736,6 +740,7 @@ function getUIState() {
       narrative: !!document.getElementById('fieldNarrative')?.checked,
       location: !!document.getElementById('fieldLocation')?.checked,
       victim: !!document.getElementById('fieldVictim')?.checked,
+      complaint: !!document.getElementById('fieldComplaint')?.checked,
     }
   };
 }
@@ -758,6 +763,7 @@ function applyStateToUI(state) {
     document.getElementById('fieldNarrative').checked = !!state.fields.narrative;
     document.getElementById('fieldLocation').checked  = !!state.fields.location;
     document.getElementById('fieldVictim').checked    = !!state.fields.victim;
+    document.getElementById('fieldComplaint').checked = !!state.fields.complaint;
   }
   // offense is applied later (after dropdown is populated for selected time period)
 }
@@ -773,16 +779,17 @@ function stateToHash(state) {
   if (state.searchText) params.set('q', state.searchText);
   if (state.searchMode && state.searchMode !== 'any') params.set('mode', state.searchMode);
 
-  // fields bitmask for compactness: o n l v (1/0)
+  // fields bitmask for compactness: o n l v c (1/0)
   const f = state.fields || {};
   const mask = [
     f.offense ? '1' : '0',
     f.narrative ? '1' : '0',
     f.location ? '1' : '0',
-    f.victim ? '1' : '0'
+    f.victim ? '1' : '0',
+    f.complaint ? '1' : '0'
   ].join('');
-  const DEFAULT_MASK = '0100'; // Narrative only
-  if (mask !== DEFAULT_MASK) params.set('f', mask); // default 0100 narrative only. narrative = true ex
+  const DEFAULT_MASK = '01000'; // Narrative only
+  if (mask !== DEFAULT_MASK) params.set('f', mask); // default 01000 narrative only. narrative = true ex
 
   return '#' + params.toString();
 }
@@ -791,8 +798,8 @@ function hashToState() {
   const hash = window.location.hash?.replace(/^#/, '') || '';
   if (!hash) return null;
   const params = new URLSearchParams(hash);
-  const DEFAULT_MASK = '0100'; // Narrative only
-  const fmask = (params.get('f') || DEFAULT_MASK).padEnd(4, '0').slice(0,4);
+  const DEFAULT_MASK = '01000'; // Narrative only
+  const fmask = (params.get('f') || DEFAULT_MASK).padEnd(5, '0').slice(0,5);
   return {
     date: params.get('date') || 'last14',
     customRange: params.get('range') || '',
@@ -805,7 +812,8 @@ function hashToState() {
       offense: fmask[0] === '1',
       narrative: fmask[1] === '1',
       location: fmask[2] === '1',
-      victim: fmask[3] === '1'
+      victim: fmask[3] === '1',
+      complaint: fmask[4] === '1'
     }
   };
 }
@@ -1374,6 +1382,7 @@ async function initializeDuckDB() {
         if (document.getElementById('fieldNarrative')?.checked) fields.push('narrative');
         if (document.getElementById('fieldLocation')?.checked) fields.push('location');
         if (document.getElementById('fieldVictim')?.checked) fields.push('victim');
+        if (document.getElementById('fieldComplaint')?.checked) fields.push('complaint_num');
 
         const searchStatus = document.getElementById('searchStatus');
         if (!termRaw || fields.length === 0) {
@@ -1381,7 +1390,7 @@ async function initializeDuckDB() {
             return [];
         }
 
-        const fieldsLabel = fields.join(', ');
+        const fieldsLabel = fields.map(f => f === 'complaint_num' ? 'complaint #' : f).join(', ');
         if (searchStatus) searchStatus.textContent = `Searching "${termRaw}" in: ${fieldsLabel} (${mode})`;
 
         // Escape single quotes for SQL safety
