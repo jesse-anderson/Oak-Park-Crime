@@ -1156,8 +1156,16 @@ async function initializeDuckDB() {
         console.log("[DB Init] Database file registered and attached as 'attached_crimedb'. Used 'USE attached_crimedb'.");
         
         const tableCheckResult = await db.query(`SELECT COUNT(*) as count FROM crimes`);
-        const countValue = tableCheckResult.toArray()[0].count; 
+        const countValue = tableCheckResult.toArray()[0].count;
         console.log("[DB Init] Crimes table count:", typeof countValue === 'bigint' ? countValue.toString() : countValue);
+
+        // Test hook (Playwright); BigInts → strings so results survive page.evaluate.
+        window.opCrimeMap.runSql = async (sql) => {
+            const rows = (await db.query(sql)).toArray();
+            return rows.map(r => Object.fromEntries(
+                Object.entries(r).map(([k, v]) => [k, typeof v === 'bigint' ? v.toString() : v])
+            ));
+        };
 
         updateLoadStatus("Database loaded, initializing map controls...");
         initializeMap(); 
@@ -1840,6 +1848,13 @@ async function initializeDuckDB() {
                 // Map-level fields render immediately. Time/Victim/Narrative lazy-load on popup open
                 // (V3 crime_details is fetched per-pin, not shipped to JS up front).
                 const recordId = Number(crime.record_id);
+                // Phase 3 (schema v4): pdf_url is null on rows sourced solely from
+                // the OP open-data dashboard (no PDF activity report). Fall back
+                // to the dataset landing page so every popup carries an honest
+                // source link rather than fabricating absence-by-omission.
+                const hasPdfUrl = (crime.pdf_url != null && String(crime.pdf_url).trim() !== "");
+                const sourceHref  = hasPdfUrl ? crime.pdf_url : "https://opendata.oak-park.us/CrimeIncident";
+                const sourceLabel = hasPdfUrl ? "PDF Link"    : "OP Open Data Portal";
                 const popupContent = `
                     <b>Complaint #:</b> ${safeField(crime.complaint_num)}<br/>
                     <b>Offense:</b> ${safeField(crime.offense)}<br/>
@@ -1850,7 +1865,7 @@ async function initializeDuckDB() {
                       <b>Location:</b> ${safeField(crime.location)}<br/>
                       <b>Victim:</b> <span data-lazy="victim">&hellip;</span><br/>
                       <b>Narrative:</b> <span data-lazy="narrative">&hellip;</span><br/>
-                      <b>URL:</b> <a href="${safeField(crime.pdf_url)}" target="_blank">PDF Link</a>
+                      <b>Source:</b> <a href="${sourceHref}" target="_blank">${sourceLabel}</a>
                     </details>
                 `;
 
