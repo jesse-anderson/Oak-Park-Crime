@@ -162,6 +162,15 @@
                         <option value="all" selected>All zones</option>
                     </select>
                 </div>
+                <div class="field-group">
+                    <label class="label" for="sourceFilter"><strong>Filter by source:</strong></label>
+                    <select id="sourceFilter">
+                        <option value="all" selected>All sources</option>
+                        <option value="pdf">PDF only</option>
+                        <option value="dashboard">Dashboard only</option>
+                        <option value="both">Matched (PDF + Dashboard)</option>
+                    </select>
+                </div>
             </div>
         </div>
         </div>
@@ -733,6 +742,7 @@ function getUIState() {
     customRange: document.getElementById('customRange')?.value || '',
     offense: document.getElementById('offenseType')?.value || 'all',
     zone: document.getElementById('zoneFilter')?.value || 'all',
+    source: document.getElementById('sourceFilter')?.value || 'all',
     searchText: document.getElementById('searchText')?.value || '',
     searchMode: document.getElementById('searchMode')?.value || 'any',
     fields: {
@@ -765,6 +775,10 @@ function applyStateToUI(state) {
     document.getElementById('fieldVictim').checked    = !!state.fields.victim;
     document.getElementById('fieldComplaint').checked = !!state.fields.complaint;
   }
+  if (state.source) {
+    const sf = document.getElementById('sourceFilter');
+    if (sf) sf.value = state.source;
+  }
   // offense is applied later (after dropdown is populated for selected time period)
 }
 
@@ -776,6 +790,7 @@ function stateToHash(state) {
   // Zone uses short key 'z' for URL compactness. Only written when non-default so the
   // default ("All zones") produces no hash entry and keeps shareable links clean.
   if (state.zone && state.zone !== 'all') params.set('z', state.zone);
+  if (state.source && state.source !== 'all') params.set('src', state.source);
   if (state.searchText) params.set('q', state.searchText);
   if (state.searchMode && state.searchMode !== 'any') params.set('mode', state.searchMode);
 
@@ -806,6 +821,7 @@ function hashToState() {
     offense: params.get('offense') || 'all',
     // Zone read from short key 'z'. Mirrors the stateToHash write side.
     zone: params.get('z') || 'all',
+    source: params.get('src') || 'all',
     searchText: params.get('q') || '',
     searchMode: params.get('mode') || 'any',
     fields: {
@@ -1409,13 +1425,25 @@ async function initializeDuckDB() {
         const fieldsLabel = fields.map(f => f === 'complaint_num' ? 'complaint #' : f).join(', ');
         if (searchStatus) searchStatus.textContent = `Searching "${termRaw}" in: ${fieldsLabel} (${mode})`;
 
+        // Schema v4: 'offense' search expands across PDF freeform, NIBRS-picked primary,
+        // and the full charge list, so multi-charge dashboard rows and 'both' rows where
+        // PDF and dashboard categorize differently are still findable.
+        const FIELD_EXPRS = {
+            offense: ['offense', 'pdf_offense_text', "array_to_string(offense_descriptions, ' ')"],
+            narrative: ['narrative'],
+            location: ['location'],
+            victim: ['victim'],
+            complaint_num: ['complaint_num'],
+        };
+        const exprsFor = (f) => FIELD_EXPRS[f] || [f];
+
         // Escape single quotes for SQL safety
         const sanitize = (s) => s.replace(/'/g, "''");
 
         let conditions = [];
         if (mode === 'exact') {
             const phrase = sanitize(termRaw.toLowerCase());
-            const fieldConds = fields.map(f => `LOWER(${f}) LIKE '%${phrase}%'`);
+            const fieldConds = fields.flatMap(f => exprsFor(f).map(e => `LOWER(${e}) LIKE '%${phrase}%'`));
             conditions.push(`(${fieldConds.join(' OR ')})`);
             return conditions;
         }
@@ -1426,7 +1454,7 @@ async function initializeDuckDB() {
 
         // Build one OR-group per token (across selected fields), then join groups by mode
         const tokenGroups = tokens.map(t => {
-            const likeParts = fields.map(f => `LOWER(${f}) LIKE '%${t}%'`);
+            const likeParts = fields.flatMap(f => exprsFor(f).map(e => `LOWER(${e}) LIKE '%${t}%'`));
             return `(${likeParts.join(' OR ')})`;
         });
 
@@ -1656,11 +1684,18 @@ async function initializeDuckDB() {
             // Add date conditions if they exist
             allConditions = allConditions.concat(dateConditions);
             
-            // Add offense filter if needed
+            // Add offense filter if needed. Schema v4: dropdown lists distinct values from
+            // the `offense` column (mix of PDF freeform and NIBRS taxonomy depending on row
+            // source). Match across all three offense surfaces so a NIBRS pick catches
+            // multi-charge rows where the term is a secondary charge, and a PDF pick catches
+            // 'both' rows where dashboard reclassified the primary.
             if (offenseType !== 'all') {
-                // Escape single quotes in offense type for SQL safety
                 const escapedOffense = offenseType.replace(/'/g, "''");
-                allConditions.push(`offense = '${escapedOffense}'`);
+                allConditions.push(
+                    `(offense = '${escapedOffense}'`
+                    + ` OR pdf_offense_text = '${escapedOffense}'`
+                    + ` OR list_contains(offense_descriptions, '${escapedOffense}'))`
+                );
             }
 
             // Zone filter. Values: 'all' (no filter), 'unzoned' (zone_id IS NULL), '1'..'8' (numeric).
@@ -1673,6 +1708,12 @@ async function initializeDuckDB() {
                 if (Number.isInteger(zoneInt)) {
                     allConditions.push(`zone_id = ${zoneInt}`);
                 }
+            }
+
+            // Source filter. Schema v4: 'pdf' / 'dashboard' / 'both' / 'all' (no filter).
+            const sourceFilter = document.getElementById('sourceFilter')?.value || 'all';
+            if (['pdf', 'dashboard', 'both'].includes(sourceFilter)) {
+                allConditions.push(`source = '${sourceFilter}'`);
             }
 
             // NEW[8.10.25]: add advanced search conditions
@@ -1873,6 +1914,7 @@ async function initializeDuckDB() {
                       <b>Location:</b> ${safeField(crime.location)}<br/>
                       <b>Victim:</b> <span data-lazy="victim">&hellip;</span><br/>
                       <b>Narrative:</b> <span data-lazy="narrative">&hellip;</span><br/>
+                      <span data-extras></span>
                       <b>Source:</b> <a href="${sourceHref}" target="_blank">${sourceLabel}</a>
                     </details>
                 `;
@@ -1938,18 +1980,31 @@ async function initializeDuckDB() {
             }
         }
         
-        // Lazy-load time/victim/narrative for a single pin. Called from each marker's popupopen.
+        // Lazy-load detail fields for a single pin. Called from each marker's popupopen.
         // Cache keyed by record_id - identical across filter changes.
         async function hydrateCrimeDetail(popupEl, recordId) {
             if (!popupEl) return;
             const slots = popupEl.querySelectorAll('span[data-lazy]');
-            if (slots.length === 0) return; // popup structure unexpected; bail silently
+            if (slots.length === 0) return;
 
             let detail = detailCache.get(recordId);
             if (!detail) {
                 try {
-                    const res = await db.query(`SELECT time, victim, narrative FROM crime_details WHERE record_id = ${recordId}`);
+                    const res = await db.query(`
+                        SELECT
+                            source, occur_datetime, charge_count,
+                            offense, pdf_offense_text, offense_descriptions,
+                            pd_zone, pd_post,
+                            primary_nibrs_code, primary_crime_against, primary_offense_type,
+                            time, victim, narrative
+                        FROM crimes JOIN crime_details USING (record_id)
+                        WHERE record_id = ${recordId}
+                    `);
                     detail = res.toArray()[0] || {};
+                    // Arrow Vector -> plain Array so .length / iteration work normally.
+                    if (detail.offense_descriptions && typeof detail.offense_descriptions.toArray === 'function') {
+                        detail.offense_descriptions = detail.offense_descriptions.toArray();
+                    }
                     detailCache.set(recordId, detail);
                 } catch (err) {
                     console.error('[detail hydrate] fetch failed for record_id', recordId, err);
@@ -1957,11 +2012,55 @@ async function initializeDuckDB() {
                     return;
                 }
             }
+
+            const isDashOnly = detail.source === 'dashboard';
+            const hasDashData = detail.source === 'dashboard' || detail.source === 'both';
+            const fmtOccurTime = (dt) => {
+                if (!dt) return null;
+                const d = (dt instanceof Date) ? dt : new Date(dt);
+                if (isNaN(d.getTime())) return null;
+                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            };
+
+            const isMissing = (v) => v === null || v === undefined || v === '' || v === 'null';
+
             slots.forEach(s => {
                 const key = s.dataset.lazy;
-                s.textContent = ''; // clear the ellipsis
-                s.insertAdjacentHTML('afterbegin', safeField(detail[key]));
+                let value = detail[key];
+                s.textContent = '';
+                if (isMissing(value)) {
+                    if (key === 'time') {
+                        const t = fmtOccurTime(detail.occur_datetime);
+                        value = t || (isDashOnly ? 'Not reported in OP open data' : value);
+                    } else if (isDashOnly && (key === 'victim' || key === 'narrative')) {
+                        value = 'Not reported in OP open data';
+                    }
+                }
+                s.insertAdjacentHTML('afterbegin', safeField(value));
             });
+
+            // Conditional rows: only emitted when there is real dashboard-side info to surface.
+            const extrasEl = popupEl.querySelector('span[data-extras]');
+            if (!extrasEl) return;
+            const extras = [];
+            if (hasDashData && detail.primary_nibrs_code) {
+                const ctx = [detail.primary_crime_against, detail.primary_offense_type].filter(Boolean).join(', ');
+                extras.push(`<b>NIBRS:</b> ${safeField(detail.primary_nibrs_code)}${ctx ? ` (${safeField(ctx)})` : ''}<br/>`);
+            }
+            if (hasDashData && (detail.pd_zone != null || detail.pd_post != null)) {
+                const parts = [];
+                if (detail.pd_zone != null) parts.push(`Zone ${detail.pd_zone}`);
+                if (detail.pd_post != null) parts.push(`Post ${detail.pd_post}`);
+                extras.push(`<b>PD Beat:</b> ${parts.join(' / ')}<br/>`);
+            }
+            const charges = detail.offense_descriptions;
+            if (Array.isArray(charges) && charges.length > 1) {
+                extras.push(`<b>Charges (${charges.length}):</b> ${charges.map(c => safeField(c)).join(', ')}<br/>`);
+            }
+            if (detail.source === 'both' && detail.pdf_offense_text && detail.pdf_offense_text !== detail.offense) {
+                extras.push(`<b>PDF Offense:</b> ${safeField(detail.pdf_offense_text)}<br/>`);
+            }
+            if (extras.length > 0) extrasEl.innerHTML = extras.join('');
         }
 
         // Function to export current view to CSV
