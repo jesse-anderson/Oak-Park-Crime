@@ -1159,11 +1159,19 @@ async function initializeDuckDB() {
         const countValue = tableCheckResult.toArray()[0].count;
         console.log("[DB Init] Crimes table count:", typeof countValue === 'bigint' ? countValue.toString() : countValue);
 
-        // Test hook (Playwright); BigInts → strings so results survive page.evaluate.
+        // Test hook (Playwright). BigInts -> strings; Arrow Vectors (LIST cols) -> Arrays;
+        // both are needed for results to survive page.evaluate structured clone.
         window.opCrimeMap.runSql = async (sql) => {
+            const norm = (v) => {
+                if (typeof v === 'bigint') return v.toString();
+                if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.toArray === 'function') {
+                    return v.toArray();
+                }
+                return v;
+            };
             const rows = (await db.query(sql)).toArray();
             return rows.map(r => Object.fromEntries(
-                Object.entries(r).map(([k, v]) => [k, typeof v === 'bigint' ? v.toString() : v])
+                Object.entries(r).map(([k, v]) => [k, norm(v)])
             ));
         };
 
