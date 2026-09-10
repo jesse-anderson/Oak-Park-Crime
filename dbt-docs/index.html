@@ -11,16 +11,17 @@ box-shadow:0 2px 10px rgba(11,11,11,.22)}
 #dq-nav:hover{background:#3d3c3a}
 @media (prefers-color-scheme:dark){#dq-link{background:#3987e5}}
 @media (max-width:960px){
-  /* height:100vh + overflow:auto makes .layout an inner scroller sized to the
-     visual viewport, which is why pinch-zoom has nothing to zoom. Letting the
-     document itself grow restores normal zoom and scrolling. */
+  /* Measured with Playwright at 390px rather than guessed: the element forcing
+     the 960px canvas is .app.app-row, not .layout. Text already computes to
+     white-space:normal, so it was never a wrapping rule at fault, just a box
+     840px wide inside a 960px shell. */
   .layout{min-width:0 !important;width:100% !important;height:auto !important;
     min-height:100vh;overflow:visible !important}
-  /* dbt's utility classes pin text to one line. On a phone that clips rather
-     than wraps, so they are relaxed here only. */
-  .nowrap,.condensed,.ellipsis,.table td,.table th,td,th{white-space:normal !important}
-  .ellipsis{overflow:visible !important;text-overflow:clip !important;width:auto !important}
-  .condensed{width:auto !important}
+  .app,.app-row,.app-column,.app-frame,.app-content,.app-header,.app-navbar{
+    min-width:0 !important;max-width:100% !important}
+  .app,.app-row,.app-frame,.app-content{width:100% !important}
+  /* dbt hardcodes width:900px on the selector search box */
+  input#search,.form-control{width:100% !important;max-width:100% !important;min-width:0 !important}
   .app-content,.panel,.panel-body{overflow-wrap:anywhere;word-break:break-word}
   pre,code,.code{white-space:pre-wrap !important;word-break:break-word}
   .table-responsive{overflow-x:auto !important}
@@ -29,8 +30,8 @@ box-shadow:0 2px 10px rgba(11,11,11,.22)}
     transform:translateX(0);box-shadow:2px 0 14px rgba(11,11,11,.28);overflow-y:auto;
     padding-bottom:116px !important}
   html.dq-nav-closed .app-sidebar,html.dq-nav-closed .app-menu{transform:translateX(-100%)}
-  .app-content{width:100% !important;min-width:0 !important;margin-left:0 !important}
   #dq-nav{display:block}
+}
 }
 </style><button id="dq-nav" type="button" aria-expanded="true">Close</button>
 <a id="dq-link" href="quality.html">Data quality report</a>
