@@ -15,6 +15,9 @@ box-shadow:0 2px 10px rgba(11,11,11,.22)}
      the 960px canvas is .app.app-row, not .layout. Text already computes to
      white-space:normal, so it was never a wrapping rule at fault, just a box
      840px wide inside a 960px shell. */
+  /* body itself carries min-width:960px, which is the origin of the whole
+     problem: nothing below it can be narrower. */
+  body{min-width:0 !important;width:100% !important}
   .layout{min-width:0 !important;width:100% !important;height:auto !important;
     min-height:100vh;overflow:visible !important}
   .app,.app-row,.app-column,.app-frame,.app-content,.app-header,.app-navbar{
