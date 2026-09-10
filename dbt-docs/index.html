@@ -49,10 +49,18 @@ box-shadow:0 2px 10px rgba(11,11,11,.22)}
   b.addEventListener('click',function(){
     sync(document.documentElement.classList.toggle('dq-nav-closed'));
   });
-  // Navigating should reveal what you navigated to; hashchange covers dbt routing.
-  window.addEventListener('hashchange',function(){
-    document.documentElement.classList.add('dq-nav-closed');
-    sync(true);
+  // Close only when a leaf is opened, never when a folder is expanded. dbt marks
+  // the two differently: .menu-tree rows call onFolderClick, .menu-node rows call
+  // activate. Keying on hashchange cannot tell them apart, which made expanding a
+  // nested folder collapse the drawer every time. Delegated from document so it
+  // survives Angular re-rendering the tree.
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(!t||!t.closest)return;
+    if(t.closest('.menu-node')||t.closest('.menu-main')){
+      document.documentElement.classList.add('dq-nav-closed');
+      sync(true);
+    }
   });
 })();
 </script></body></html>
