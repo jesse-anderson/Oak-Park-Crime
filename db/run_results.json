@@ -2,9 +2,9 @@
   "metadata": {
     "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
     "dbt_version": "1.12.4",
-    "generated_at": "2026-10-09T17:02:57.040639Z",
-    "invocation_id": "0a07f279-71b7-49d5-bd3c-dc06f974222e",
-    "invocation_started_at": "2026-10-09T17:02:42.704387Z",
+    "generated_at": "2026-10-10T05:02:40.650120Z",
+    "invocation_id": "c3e191a1-1d32-43f1-8980-7f871d968628",
+    "invocation_started_at": "2026-10-10T05:02:26.411789Z",
     "env": {}
   },
   "results": [
@@ -13,26 +13,26 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.107430Z",
-          "completed_at": "2026-10-09T17:02:47.131972Z"
+          "started_at": "2026-10-10T05:02:30.704300Z",
+          "completed_at": "2026-10-10T05:02:30.756539Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.132971Z",
-          "completed_at": "2026-10-09T17:02:47.354313Z"
+          "started_at": "2026-10-10T05:02:30.767541Z",
+          "completed_at": "2026-10-10T05:02:30.941967Z"
         }
       ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.25902390480041504,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.2652866840362549,
       "adapter_response": {
         "_message": "OK"
       },
       "message": "OK",
       "failures": null,
-      "unique_id": "model.opcrime.stg_crime_details",
+      "unique_id": "model.opcrime.stg_policing_zones",
       "compiled": true,
-      "compiled_code": "select\n    record_id,\n    time,\n    victim,\n    narrative,\n    date_raw,\n    source_page,\n    notes\n\nfrom read_parquet('../db/crime_details.parquet')",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_crime_details\"",
+      "compiled_code": "select\n    zone       as zone_id,\n    name       as zone_name,\n    geom       as zone_geom\n\nfrom ST_Read('../Policing_Zones_Data/policing_zones_2024.geojson')",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_policing_zones\"",
       "batch_results": null,
       "overload_results": null
     },
@@ -41,45 +41,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.124969Z",
-          "completed_at": "2026-10-09T17:02:47.162346Z"
+          "started_at": "2026-10-10T05:02:30.694363Z",
+          "completed_at": "2026-10-10T05:02:30.708308Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.187950Z",
-          "completed_at": "2026-10-09T17:02:47.360838Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.26592016220092773,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": "OK",
-      "failures": null,
-      "unique_id": "model.opcrime.stg_geocode_cache",
-      "compiled": true,
-      "compiled_code": "-- json_each unpivots the single wide object; read_json_auto would infer 7350 columns\nwith raw as (\n\n    select content::JSON as payload\n    from read_text('../cache/location_cache.json')\n\n)\n\nselect\n    entry.key                              as location_key,\n    try_cast(entry.value ->> 0 as double)  as lat,\n    try_cast(entry.value ->> 1 as double)  as long,\n    (entry.value ->> 0) is null            as known_unresolvable\n\nfrom raw, json_each(raw.payload) as entry",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_geocode_cache\"",
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "success",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:47.120738Z",
-          "completed_at": "2026-10-09T17:02:47.132971Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:47.181423Z",
-          "completed_at": "2026-10-09T17:02:47.364841Z"
+          "started_at": "2026-10-10T05:02:30.757536Z",
+          "completed_at": "2026-10-10T05:02:30.931096Z"
         }
       ],
       "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.27098822593688965,
+      "execution_time": 0.25455522537231445,
       "adapter_response": {
         "_message": "OK"
       },
@@ -97,54 +69,54 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.127971Z",
-          "completed_at": "2026-10-09T17:02:47.187950Z"
+          "started_at": "2026-10-10T05:02:30.699363Z",
+          "completed_at": "2026-10-10T05:02:30.756539Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.193946Z",
-          "completed_at": "2026-10-09T17:02:47.367841Z"
+          "started_at": "2026-10-10T05:02:30.763539Z",
+          "completed_at": "2026-10-10T05:02:30.938961Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.26908040046691895,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.2653839588165283,
       "adapter_response": {
         "_message": "OK"
       },
       "message": "OK",
       "failures": null,
-      "unique_id": "model.opcrime.stg_policing_zones",
+      "unique_id": "model.opcrime.stg_geocode_cache",
       "compiled": true,
-      "compiled_code": "select\n    zone       as zone_id,\n    name       as zone_name,\n    geom       as zone_geom\n\nfrom ST_Read('../Policing_Zones_Data/policing_zones_2024.geojson')",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_policing_zones\"",
+      "compiled_code": "-- json_each unpivots the single wide object; read_json_auto would infer 7350 columns\nwith raw as (\n\n    select content::JSON as payload\n    from read_text('../cache/location_cache.json')\n\n)\n\nselect\n    entry.key                              as location_key,\n    try_cast(entry.value ->> 0 as double)  as lat,\n    try_cast(entry.value ->> 1 as double)  as long,\n    (entry.value ->> 0) is null            as known_unresolvable\n\nfrom raw, json_each(raw.payload) as entry",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_geocode_cache\"",
       "batch_results": null,
       "overload_results": null
     },
     {
-      "status": "pass",
+      "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.395420Z",
-          "completed_at": "2026-10-09T17:02:47.451587Z"
+          "started_at": "2026-10-10T05:02:30.685363Z",
+          "completed_at": "2026-10-10T05:02:30.707301Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.454589Z",
-          "completed_at": "2026-10-09T17:02:47.522768Z"
+          "started_at": "2026-10-10T05:02:30.709303Z",
+          "completed_at": "2026-10-10T05:02:30.936963Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.13835573196411133,
+      "execution_time": 0.26541924476623535,
       "adapter_response": {
         "_message": "OK"
       },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_stg_crime_details_record_id.911c0d525b",
+      "message": "OK",
+      "failures": null,
+      "unique_id": "model.opcrime.stg_crime_details",
       "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"\nwhere record_id is null\n\n\n",
-      "relation_name": null,
+      "compiled_code": "select\n    record_id,\n    time,\n    victim,\n    narrative,\n    date_raw,\n    source_page,\n    notes\n\nfrom read_parquet('../db/crime_details.parquet')",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"stg_crime_details\"",
       "batch_results": null,
       "overload_results": null
     },
@@ -153,73 +125,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.418712Z",
-          "completed_at": "2026-10-09T17:02:47.452589Z"
+          "started_at": "2026-10-10T05:02:31.029367Z",
+          "completed_at": "2026-10-10T05:02:31.071505Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.482590Z",
-          "completed_at": "2026-10-09T17:02:47.533608Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.15189242362976074,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_stg_crime_details_record_id.c429c74320",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:47.431585Z",
-          "completed_at": "2026-10-09T17:02:47.453587Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:47.485586Z",
-          "completed_at": "2026-10-09T17:02:47.540245Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.15737628936767578,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_stg_geocode_cache_location_key.491454ab94",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect location_key\nfrom \"opcrime_dbt\".\"main\".\"stg_geocode_cache\"\nwhere location_key is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:47.548794Z",
-          "completed_at": "2026-10-09T17:02:47.566794Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:47.578316Z",
-          "completed_at": "2026-10-09T17:02:47.624990Z"
+          "started_at": "2026-10-10T05:02:31.076068Z",
+          "completed_at": "2026-10-10T05:02:31.115142Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.0875539779663086,
+      "execution_time": 0.15030694007873535,
       "adapter_response": {
         "_message": "OK"
       },
@@ -237,45 +153,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.568789Z",
-          "completed_at": "2026-10-09T17:02:47.584089Z"
+          "started_at": "2026-10-10T05:02:30.982834Z",
+          "completed_at": "2026-10-10T05:02:31.039361Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.596089Z",
-          "completed_at": "2026-10-09T17:02:47.633039Z"
+          "started_at": "2026-10-10T05:02:31.041360Z",
+          "completed_at": "2026-10-10T05:02:31.122146Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.07624292373657227,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_stg_crimes_record_id.f888974518",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:47.585090Z",
-          "completed_at": "2026-10-09T17:02:47.601096Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:47.604092Z",
-          "completed_at": "2026-10-09T17:02:47.644036Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.07796072959899902,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.15829229354858398,
       "adapter_response": {
         "_message": "OK"
       },
@@ -293,17 +181,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.648034Z",
-          "completed_at": "2026-10-09T17:02:47.664046Z"
+          "started_at": "2026-10-10T05:02:31.004347Z",
+          "completed_at": "2026-10-10T05:02:31.040366Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.667048Z",
-          "completed_at": "2026-10-09T17:02:47.800133Z"
+          "started_at": "2026-10-10T05:02:31.068409Z",
+          "completed_at": "2026-10-10T05:02:31.124141Z"
         }
       ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.16209745407104492,
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.15830397605895996,
       "adapter_response": {
         "_message": "OK"
       },
@@ -321,17 +209,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.670045Z",
-          "completed_at": "2026-10-09T17:02:47.683054Z"
+          "started_at": "2026-10-10T05:02:31.016340Z",
+          "completed_at": "2026-10-10T05:02:31.058951Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.688311Z",
-          "completed_at": "2026-10-09T17:02:47.813127Z"
+          "started_at": "2026-10-10T05:02:31.072069Z",
+          "completed_at": "2026-10-10T05:02:31.130140Z"
         }
       ],
       "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.15908026695251465,
+      "execution_time": 0.16330361366271973,
       "adapter_response": {
         "_message": "OK"
       },
@@ -345,21 +233,133 @@
       "overload_results": null
     },
     {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.152022Z",
+          "completed_at": "2026-10-10T05:02:31.180550Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.183554Z",
+          "completed_at": "2026-10-10T05:02:31.241290Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.10667133331298828,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_stg_crimes_record_id.f888974518",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.185551Z",
+          "completed_at": "2026-10-10T05:02:31.206073Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.208074Z",
+          "completed_at": "2026-10-10T05:02:31.249291Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.08680081367492676,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_stg_crime_details_record_id.911c0d525b",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"\nwhere record_id is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.162025Z",
+          "completed_at": "2026-10-10T05:02:31.182555Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.199076Z",
+          "completed_at": "2026-10-10T05:02:31.254826Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.11868524551391602,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_stg_geocode_cache_location_key.491454ab94",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect location_key\nfrom \"opcrime_dbt\".\"main\".\"stg_geocode_cache\"\nwhere location_key is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.272827Z",
+          "completed_at": "2026-10-10T05:02:31.291825Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.297828Z",
+          "completed_at": "2026-10-10T05:02:31.499839Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.24076485633850098,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_stg_crime_details_record_id.c429c74320",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.846024Z",
-          "completed_at": "2026-10-09T17:02:47.855395Z"
+          "started_at": "2026-10-10T05:02:31.302825Z",
+          "completed_at": "2026-10-10T05:02:31.307826Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.856912Z",
-          "completed_at": "2026-10-09T17:02:48.569313Z"
+          "started_at": "2026-10-10T05:02:31.308826Z",
+          "completed_at": "2026-10-10T05:02:31.771908Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.733285665512085,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.4810817241668701,
       "adapter_response": {
         "_message": "OK"
       },
@@ -377,54 +377,26 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.685046Z",
-          "completed_at": "2026-10-09T17:02:47.693050Z"
+          "started_at": "2026-10-10T05:02:31.518676Z",
+          "completed_at": "2026-10-10T05:02:31.524673Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.694051Z",
-          "completed_at": "2026-10-09T17:02:48.573314Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.895266056060791,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": "OK",
-      "failures": null,
-      "unique_id": "model.opcrime.crime_details",
-      "compiled": true,
-      "compiled_code": "select *\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"crime_details\"",
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "success",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:47.816131Z",
-          "completed_at": "2026-10-09T17:02:47.825129Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:47.828132Z",
-          "completed_at": "2026-10-09T17:02:48.579313Z"
+          "started_at": "2026-10-10T05:02:31.529420Z",
+          "completed_at": "2026-10-10T05:02:31.811969Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.7731807231903076,
+      "execution_time": 0.29983091354370117,
       "adapter_response": {
         "_message": "OK"
       },
       "message": "OK",
       "failures": null,
-      "unique_id": "model.opcrime.crimes",
+      "unique_id": "model.opcrime.dim_offense",
       "compiled": true,
-      "compiled_code": "select\n    *,\n    year(date)                 as year,\n    month(date)                as month,\n    day(date)                  as day,\n    strftime(date, '%Y-%m-%d') as date_str\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"crimes\"",
+      "compiled_code": "select\n    offense                       as offense_text,\n    max(primary_nibrs_code)       as primary_nibrs_code,\n    max(primary_crime_against)    as primary_crime_against,\n    max(primary_offense_type)     as primary_offense_type,\n    count(*)                      as incident_count,\n    min(date)                     as first_seen,\n    max(date)                     as last_seen\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"\nwhere offense is not null\ngroup by offense",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"dim_offense\"",
       "batch_results": null,
       "overload_results": null
     },
@@ -433,17 +405,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:48.602260Z",
-          "completed_at": "2026-10-09T17:02:48.616998Z"
+          "started_at": "2026-10-10T05:02:31.794445Z",
+          "completed_at": "2026-10-10T05:02:31.800442Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:48.618997Z",
-          "completed_at": "2026-10-09T17:02:48.725440Z"
+          "started_at": "2026-10-10T05:02:31.802442Z",
+          "completed_at": "2026-10-10T05:02:31.914476Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.13160324096679688,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.13302922248840332,
       "adapter_response": {
         "_message": "OK"
       },
@@ -461,17 +433,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:48.607998Z",
-          "completed_at": "2026-10-09T17:02:48.623998Z"
+          "started_at": "2026-10-10T05:02:31.829599Z",
+          "completed_at": "2026-10-10T05:02:31.838726Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:48.626035Z",
-          "completed_at": "2026-10-09T17:02:48.764023Z"
+          "started_at": "2026-10-10T05:02:31.840727Z",
+          "completed_at": "2026-10-10T05:02:32.000006Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.16889739036560059,
+      "execution_time": 0.18040966987609863,
       "adapter_response": {
         "_message": "OK"
       },
@@ -485,21 +457,49 @@
       "overload_results": null
     },
     {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.293826Z",
+          "completed_at": "2026-10-10T05:02:31.321825Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.382403Z",
+          "completed_at": "2026-10-10T05:02:32.008007Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.7401809692382812,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": "OK",
+      "failures": null,
+      "unique_id": "model.opcrime.crimes",
+      "compiled": true,
+      "compiled_code": "select\n    *,\n    year(date)                 as year,\n    month(date)                as month,\n    day(date)                  as day,\n    strftime(date, '%Y-%m-%d') as date_str\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"crimes\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "pass",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:48.745440Z",
-          "completed_at": "2026-10-09T17:02:48.768023Z"
+          "started_at": "2026-10-10T05:02:32.029620Z",
+          "completed_at": "2026-10-10T05:02:32.057801Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:48.772022Z",
-          "completed_at": "2026-10-09T17:02:48.821229Z"
+          "started_at": "2026-10-10T05:02:32.058801Z",
+          "completed_at": "2026-10-10T05:02:32.091797Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.08678746223449707,
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.07317519187927246,
       "adapter_response": {
         "_message": "OK"
       },
@@ -513,49 +513,21 @@
       "overload_results": null
     },
     {
-      "status": "success",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.596836Z",
-          "completed_at": "2026-10-09T17:02:48.606018Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.611998Z",
-          "completed_at": "2026-10-09T17:02:48.863906Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.2790646553039551,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": "OK",
-      "failures": null,
-      "unique_id": "model.opcrime.dim_offense",
-      "compiled": true,
-      "compiled_code": "select\n    offense                       as offense_text,\n    max(primary_nibrs_code)       as primary_nibrs_code,\n    max(primary_crime_against)    as primary_crime_against,\n    max(primary_offense_type)     as primary_offense_type,\n    count(*)                      as incident_count,\n    min(date)                     as first_seen,\n    max(date)                     as last_seen\n\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\"\nwhere offense is not null\ngroup by offense",
-      "relation_name": "\"opcrime_dbt\".\"main\".\"dim_offense\"",
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
       "status": "pass",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:48.798779Z",
-          "completed_at": "2026-10-09T17:02:48.811781Z"
+          "started_at": "2026-10-10T05:02:32.042274Z",
+          "completed_at": "2026-10-10T05:02:32.061801Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:48.812780Z",
-          "completed_at": "2026-10-09T17:02:48.867897Z"
+          "started_at": "2026-10-10T05:02:32.062801Z",
+          "completed_at": "2026-10-10T05:02:32.094797Z"
         }
       ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.08776664733886719,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.07417964935302734,
       "adapter_response": {
         "_message": "OK"
       },
@@ -569,631 +541,21 @@
       "overload_results": null
     },
     {
-      "status": "no-op",
+      "status": "pass",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:48.891871Z",
-          "completed_at": "2026-10-09T17:02:48.891871Z"
+          "started_at": "2026-10-10T05:02:32.119799Z",
+          "completed_at": "2026-10-10T05:02:32.139802Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:48.903870Z",
-          "completed_at": "2026-10-09T17:02:48.903870Z"
+          "started_at": "2026-10-10T05:02:32.140800Z",
+          "completed_at": "2026-10-10T05:02:32.166419Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.018021821975708008,
-      "adapter_response": {},
-      "message": "NO-OP",
-      "failures": 0,
-      "unique_id": "exposure.opcrime.oak_park_crime_dashboard",
-      "compiled": null,
-      "compiled_code": null,
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.847898Z",
-          "completed_at": "2026-10-09T17:02:48.868901Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.871901Z",
-          "completed_at": "2026-10-09T17:02:48.917995Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.07858562469482422,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_crime_details_record_id.b499c537d6",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"crime_details\"\nwhere record_id is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "no-op",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.921352Z",
-          "completed_at": "2026-10-09T17:02:48.921352Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.924132Z",
-          "completed_at": "2026-10-09T17:02:48.924132Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.009782552719116211,
-      "adapter_response": {},
-      "message": "NO-OP",
-      "failures": 0,
-      "unique_id": "exposure.opcrime.oak_park_crime_map",
-      "compiled": null,
-      "compiled_code": null,
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "no-op",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.936650Z",
-          "completed_at": "2026-10-09T17:02:48.936650Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.938650Z",
-          "completed_at": "2026-10-09T17:02:48.938650Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.007000446319580078,
-      "adapter_response": {},
-      "message": "NO-OP",
-      "failures": 0,
-      "unique_id": "exposure.opcrime.weekly_crime_email",
-      "compiled": null,
-      "compiled_code": null,
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.893870Z",
-          "completed_at": "2026-10-09T17:02:48.908879Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.910892Z",
-          "completed_at": "2026-10-09T17:02:48.975664Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.09535074234008789,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_crime_details_record_id.b4910cf80a",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"crime_details\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.939649Z",
-          "completed_at": "2026-10-09T17:02:48.976664Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:48.979505Z",
-          "completed_at": "2026-10-09T17:02:49.042993Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.11633968353271484,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_crimes_primary_crime_against__Person__Property__Society.bd32653430",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        primary_crime_against as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n    group by primary_crime_against\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'Person','Property','Society'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:48.987906Z",
-          "completed_at": "2026-10-09T17:02:49.017090Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.019091Z",
-          "completed_at": "2026-10-09T17:02:49.064989Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.08668684959411621,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_crimes_source__pdf__dashboard__both.677aa5beb0",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        source as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n    group by source\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'pdf','dashboard','both'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.084989Z",
-          "completed_at": "2026-10-09T17:02:49.132953Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.135137Z",
-          "completed_at": "2026-10-09T17:02:49.170904Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.09091305732727051,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.dbt_utils_unique_combination_of_columns_crimes_pdf_filename__block_position.00888532bf",
-      "compiled": true,
-      "compiled_code": "\n\n\n\n\n\nwith validation_errors as (\n\n    select\n        pdf_filename, block_position\n    from (select * from \"opcrime_dbt\".\"main\".\"crimes\" where pdf_filename is not null) dbt_subquery\n    group by pdf_filename, block_position\n    having count(*) > 1\n\n)\n\nselect *\nfrom validation_errors\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "warn",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.022090Z",
-          "completed_at": "2026-10-09T17:02:49.029179Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.031782Z",
-          "completed_at": "2026-10-09T17:02:49.202445Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.19335436820983887,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": "Got 34 results, configured to warn if != 0",
-      "failures": 34,
-      "unique_id": "test.opcrime.assert_no_complaint_collisions",
-      "compiled": true,
-      "compiled_code": "\n\n-- One complaint number on materially different incidents. A source data problem,\n-- so it is flagged rather than repaired per feedback_flag_dont_fix. Currently 25 groups.\n\nselect\n    complaint_num,\n    count(*)                  as row_count,\n    count(distinct date)      as distinct_dates,\n    count(distinct offense)   as distinct_offenses,\n    count(distinct location)  as distinct_locations\n\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n   and (count(distinct date) > 1\n        or count(distinct offense) > 1\n        or count(distinct location) > 1)",
-      "relation_name": "\"opcrime_dbt\".\"main_dbt_test__audit\".\"assert_no_complaint_collisions\"",
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.184767Z",
-          "completed_at": "2026-10-09T17:02:49.203446Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.204444Z",
-          "completed_at": "2026-10-09T17:02:49.258005Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.08082938194274902,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_crimes_date.31173fcec1",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect date\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere date is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.226222Z",
-          "completed_at": "2026-10-09T17:02:49.246399Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.247400Z",
-          "completed_at": "2026-10-09T17:02:49.270354Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.056627511978149414,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_crimes_record_id.d23baaa57d",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere record_id is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "warn",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.077993Z",
-          "completed_at": "2026-10-09T17:02:49.083991Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.126038Z",
-          "completed_at": "2026-10-09T17:02:49.372852Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.3058626651763916,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": "Got 68 results, configured to warn if != 0",
-      "failures": 68,
-      "unique_id": "test.opcrime.assert_no_republished_pdf_duplicates",
-      "compiled": true,
-      "compiled_code": "\n\n-- Same incident ingested twice because OPPD republished the report under a new\n-- filename (-v2 against -v3, or an -02 suffix). Currently 45 groups, 48 rows\n-- double counted downstream. Flagged not fixed: the repair belongs in\n-- drop_exact_source_duplicates. See dbt_writeup.md.\n\nselect\n    complaint_num,\n    count(*)                                 as row_count,\n    string_agg(distinct pdf_filename, ' | ') as filenames\n\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n   and count(distinct date) = 1\n   and count(distinct offense) = 1\n   and count(distinct location) = 1\n   and count(distinct pdf_filename) > 1",
-      "relation_name": "\"opcrime_dbt\".\"main_dbt_test__audit\".\"assert_no_republished_pdf_duplicates\"",
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.279351Z",
-          "completed_at": "2026-10-09T17:02:49.308067Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.311710Z",
-          "completed_at": "2026-10-09T17:02:49.389521Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.12810754776000977,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.relationships_crime_details_record_id__record_id__ref_crimes_.125285382f",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith child as (\n    select record_id as from_field\n    from \"opcrime_dbt\".\"main\".\"crime_details\"\n    where record_id is not null\n),\n\nparent as (\n    select record_id as to_field\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n)\n\nselect\n    from_field\n\nfrom child\nleft join parent\n    on child.from_field = parent.to_field\n\nwhere parent.to_field is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.389521Z",
-          "completed_at": "2026-10-09T17:02:49.401798Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.402800Z",
-          "completed_at": "2026-10-09T17:02:49.458929Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.07540535926818848,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_int_complaint_quality_complaint_num.36ac3a3ea8",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect complaint_num\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere complaint_num is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.316730Z",
-          "completed_at": "2026-10-09T17:02:49.361835Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.364834Z",
-          "completed_at": "2026-10-09T17:02:49.492925Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.19165587425231934,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_int_complaint_quality_quality_class__unique__republished__collision__other_duplicate.d2708c49e9",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        quality_class as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\n    group by quality_class\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'unique','republished','collision','other_duplicate'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.413801Z",
-          "completed_at": "2026-10-09T17:02:49.436558Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.438563Z",
-          "completed_at": "2026-10-09T17:02:49.494924Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.09261798858642578,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_int_complaint_quality_row_count.83078b64a2",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect row_count\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere row_count is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.468923Z",
-          "completed_at": "2026-10-09T17:02:49.490924Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.495924Z",
-          "completed_at": "2026-10-09T17:02:49.584930Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.12201786041259766,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_int_complaint_quality_complaint_num.6421025a1d",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    complaint_num as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.526705Z",
-          "completed_at": "2026-10-09T17:02:49.568613Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.569927Z",
-          "completed_at": "2026-10-09T17:02:49.748571Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.23854875564575195,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_int_crimes_zoned_zone_status__in_village__snapped__outside_village__ungeocoded.fe63c9b33d",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_status as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\n    group by zone_status\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'in_village','snapped','outside_village','ungeocoded'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.516058Z",
-          "completed_at": "2026-10-09T17:02:49.565617Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.566615Z",
-          "completed_at": "2026-10-09T17:02:49.796104Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.28807950019836426,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_int_crimes_zoned_zone_id__1__2__3__4__5__6__7__8.c8ebed71ea",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_id as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\n    group by zone_id\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    '1','2','3','4','5','6','7','8'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.595944Z",
-          "completed_at": "2026-10-09T17:02:49.600948Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.601944Z",
-          "completed_at": "2026-10-09T17:02:49.862567Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.27462172508239746,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.assert_zone_assignment_parity",
-      "compiled": true,
-      "compiled_code": "-- The SQL zone assignment must match the Python it reimplements.\n--\n-- assign_zones() in prepare_crime_db.py and int_crimes_zoned compute the same\n-- thing two ways. This fails if they disagree on any incident that is not sitting\n-- on a shared polygon boundary, where both answers are legitimate and the tie-break\n-- differs by design.\n--\n-- This is the test that would catch someone tuning SNAP_TOL in the Python without\n-- updating zone_snap_tolerance_deg in dbt_project.yml. That exact mismatch already\n-- happened once during development: a naive ST_Within with no tolerance moved 1,627\n-- incidents and took agreement down to 92.77 percent. Nothing was checking, so it\n-- was found by hand. Now something checks.\n\nselect\n    p.record_id,\n    p.zone_id as pipeline_zone_id,\n    d.zone_id as dbt_zone_id,\n    d.zone_status,\n    p.lat,\n    p.long\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\" as p\njoin \"opcrime_dbt\".\"main\".\"int_crimes_zoned\" as d using (record_id)\nwhere p.zone_id is distinct from d.zone_id\n  and not d.zone_boundary_ambiguous",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.805101Z",
-          "completed_at": "2026-10-09T17:02:49.816101Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.817101Z",
-          "completed_at": "2026-10-09T17:02:49.867566Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.0902249813079834,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_int_crimes_zoned_zone_status.49f000ec3b",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect zone_status\nfrom \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\nwhere zone_status is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.758572Z",
-          "completed_at": "2026-10-09T17:02:49.778103Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.779104Z",
-          "completed_at": "2026-10-09T17:02:49.923311Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.17473626136779785,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_int_crimes_zoned_record_id.f8a6d8525b",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\nwhere record_id is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:49.915325Z",
-          "completed_at": "2026-10-09T17:02:49.930309Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:49.933309Z",
-          "completed_at": "2026-10-09T17:02:49.970311Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.06299352645874023,
+      "execution_time": 0.0646963119506836,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1211,17 +573,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:49.946308Z",
-          "completed_at": "2026-10-09T17:02:49.960312Z"
+          "started_at": "2026-10-10T05:02:32.129799Z",
+          "completed_at": "2026-10-10T05:02:32.143800Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:49.961313Z",
-          "completed_at": "2026-10-09T17:02:50.010392Z"
+          "started_at": "2026-10-10T05:02:32.144800Z",
+          "completed_at": "2026-10-10T05:02:32.182025Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.07122635841369629,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.07434868812561035,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1235,21 +597,357 @@
       "overload_results": null
     },
     {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:31.931475Z",
+          "completed_at": "2026-10-10T05:02:31.935473Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:31.936474Z",
+          "completed_at": "2026-10-10T05:02:32.195678Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.26920342445373535,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": "OK",
+      "failures": null,
+      "unique_id": "model.opcrime.crime_details",
+      "compiled": true,
+      "compiled_code": "select *\nfrom \"opcrime_dbt\".\"main\".\"stg_crime_details\"",
+      "relation_name": "\"opcrime_dbt\".\"main\".\"crime_details\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "pass",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:49.895325Z",
-          "completed_at": "2026-10-09T17:02:49.909326Z"
+          "started_at": "2026-10-10T05:02:32.251686Z",
+          "completed_at": "2026-10-10T05:02:32.266686Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:49.910325Z",
-          "completed_at": "2026-10-09T17:02:50.049808Z"
+          "started_at": "2026-10-10T05:02:32.269686Z",
+          "completed_at": "2026-10-10T05:02:32.313326Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.06963753700256348,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_int_complaint_quality_complaint_num.36ac3a3ea8",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect complaint_num\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere complaint_num is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.272686Z",
+          "completed_at": "2026-10-10T05:02:32.285682Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.288684Z",
+          "completed_at": "2026-10-10T05:02:32.322322Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.0626380443572998,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_int_complaint_quality_row_count.83078b64a2",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect row_count\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere row_count is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.200681Z",
+          "completed_at": "2026-10-10T05:02:32.249684Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.261686Z",
+          "completed_at": "2026-10-10T05:02:32.382953Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.18099355697631836,
+      "execution_time": 0.1971602439880371,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_int_complaint_quality_quality_class__unique__republished__collision__other_duplicate.d2708c49e9",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        quality_class as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\n    group by quality_class\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'unique','republished','collision','other_duplicate'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.332322Z",
+          "completed_at": "2026-10-10T05:02:32.352952Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.354950Z",
+          "completed_at": "2026-10-10T05:02:32.446959Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.126631498336792,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_int_complaint_quality_complaint_num.6421025a1d",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    complaint_num as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"int_complaint_quality\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.360949Z",
+          "completed_at": "2026-10-10T05:02:32.383953Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.386164Z",
+          "completed_at": "2026-10-10T05:02:32.589122Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.23817062377929688,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_int_crimes_zoned_zone_id__1__2__3__4__5__6__7__8.c8ebed71ea",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_id as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\n    group by zone_id\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    '1','2','3','4','5','6','7','8'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.407664Z",
+          "completed_at": "2026-10-10T05:02:32.447960Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.448953Z",
+          "completed_at": "2026-10-10T05:02:32.681535Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.28087377548217773,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_int_crimes_zoned_zone_status__in_village__snapped__outside_village__ungeocoded.fe63c9b33d",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_status as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\n    group by zone_status\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'in_village','snapped','outside_village','ungeocoded'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.491947Z",
+          "completed_at": "2026-10-10T05:02:32.497597Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.498597Z",
+          "completed_at": "2026-10-10T05:02:32.733316Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.2513604164123535,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.assert_zone_assignment_parity",
+      "compiled": true,
+      "compiled_code": "-- The SQL zone assignment must match the Python it reimplements.\n--\n-- assign_zones() in prepare_crime_db.py and int_crimes_zoned compute the same\n-- thing two ways. This fails if they disagree on any incident that is not sitting\n-- on a shared polygon boundary, where both answers are legitimate and the tie-break\n-- differs by design.\n--\n-- This is the test that would catch someone tuning SNAP_TOL in the Python without\n-- updating zone_snap_tolerance_deg in dbt_project.yml. That exact mismatch already\n-- happened once during development: a naive ST_Within with no tolerance moved 1,627\n-- incidents and took agreement down to 92.77 percent. Nothing was checking, so it\n-- was found by hand. Now something checks.\n\nselect\n    p.record_id,\n    p.zone_id as pipeline_zone_id,\n    d.zone_id as dbt_zone_id,\n    d.zone_status,\n    p.lat,\n    p.long\nfrom \"opcrime_dbt\".\"main\".\"stg_crimes\" as p\njoin \"opcrime_dbt\".\"main\".\"int_crimes_zoned\" as d using (record_id)\nwhere p.zone_id is distinct from d.zone_id\n  and not d.zone_boundary_ambiguous",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.600269Z",
+          "completed_at": "2026-10-10T05:02:32.624270Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.625268Z",
+          "completed_at": "2026-10-10T05:02:32.774482Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.18269944190979004,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_int_crimes_zoned_record_id.f8a6d8525b",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\nwhere record_id is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.706538Z",
+          "completed_at": "2026-10-10T05:02:32.736314Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.739918Z",
+          "completed_at": "2026-10-10T05:02:32.824109Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.12853360176086426,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_int_crimes_zoned_zone_status.49f000ec3b",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect zone_status\nfrom \"opcrime_dbt\".\"main\".\"int_crimes_zoned\"\nwhere zone_status is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.792006Z",
+          "completed_at": "2026-10-10T05:02:32.826225Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.829472Z",
+          "completed_at": "2026-10-10T05:02:32.901883Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.11839747428894043,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_crimes_primary_crime_against__Person__Property__Society.bd32653430",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        primary_crime_against as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n    group by primary_crime_against\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'Person','Property','Society'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.842702Z",
+          "completed_at": "2026-10-10T05:02:32.890887Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.891886Z",
+          "completed_at": "2026-10-10T05:02:32.920882Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.0911870002746582,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_crimes_source__pdf__dashboard__both.677aa5beb0",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        source as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n    group by source\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'pdf','dashboard','both'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.753840Z",
+          "completed_at": "2026-10-10T05:02:32.778482Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.780487Z",
+          "completed_at": "2026-10-10T05:02:32.977727Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 1.3580446243286133,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1263,21 +961,323 @@
       "overload_results": null
     },
     {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.134889Z",
+          "completed_at": "2026-10-10T05:02:34.181716Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.183716Z",
+          "completed_at": "2026-10-10T05:02:34.242450Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.1172018051147461,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.dbt_utils_unique_combination_of_columns_crimes_pdf_filename__block_position.00888532bf",
+      "compiled": true,
+      "compiled_code": "\n\n\n\n\n\nwith validation_errors as (\n\n    select\n        pdf_filename, block_position\n    from (select * from \"opcrime_dbt\".\"main\".\"crimes\" where pdf_filename is not null) dbt_subquery\n    group by pdf_filename, block_position\n    having count(*) > 1\n\n)\n\nselect *\nfrom validation_errors\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "warn",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.914884Z",
+          "completed_at": "2026-10-10T05:02:32.921882Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.923883Z",
+          "completed_at": "2026-10-10T05:02:34.293092Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 1.3882050514221191,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": "Got 34 results, configured to warn if != 0",
+      "failures": 34,
+      "unique_id": "test.opcrime.assert_no_complaint_collisions",
+      "compiled": true,
+      "compiled_code": "\n\n-- One complaint number on materially different incidents. A source data problem,\n-- so it is flagged rather than repaired per feedback_flag_dont_fix. Currently 25 groups.\n\nselect\n    complaint_num,\n    count(*)                  as row_count,\n    count(distinct date)      as distinct_dates,\n    count(distinct offense)   as distinct_offenses,\n    count(distinct location)  as distinct_locations\n\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n   and (count(distinct date) > 1\n        or count(distinct offense) > 1\n        or count(distinct location) > 1)",
+      "relation_name": "\"opcrime_dbt\".\"main_dbt_test__audit\".\"assert_no_complaint_collisions\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.262086Z",
+          "completed_at": "2026-10-10T05:02:34.283087Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.285087Z",
+          "completed_at": "2026-10-10T05:02:34.333624Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.08253717422485352,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_crimes_date.31173fcec1",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect date\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere date is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "no-op",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.351624Z",
+          "completed_at": "2026-10-10T05:02:34.351624Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.353621Z",
+          "completed_at": "2026-10-10T05:02:34.353621Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.005998134613037109,
+      "adapter_response": {},
+      "message": "NO-OP",
+      "failures": 0,
+      "unique_id": "exposure.opcrime.oak_park_crime_dashboard",
+      "compiled": null,
+      "compiled_code": null,
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.310626Z",
+          "completed_at": "2026-10-10T05:02:34.326622Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.327625Z",
+          "completed_at": "2026-10-10T05:02:34.356449Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.05410909652709961,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_crimes_record_id.d23baaa57d",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere record_id is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "no-op",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.368057Z",
+          "completed_at": "2026-10-10T05:02:34.368057Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.371059Z",
+          "completed_at": "2026-10-10T05:02:34.371059Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.007779598236083984,
+      "adapter_response": {},
+      "message": "NO-OP",
+      "failures": 0,
+      "unique_id": "exposure.opcrime.oak_park_crime_map",
+      "compiled": null,
+      "compiled_code": null,
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "no-op",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.375060Z",
+          "completed_at": "2026-10-10T05:02:34.375060Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.379059Z",
+          "completed_at": "2026-10-10T05:02:34.379059Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.009999752044677734,
+      "adapter_response": {},
+      "message": "NO-OP",
+      "failures": 0,
+      "unique_id": "exposure.opcrime.weekly_crime_email",
+      "compiled": null,
+      "compiled_code": null,
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "warn",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:32.938035Z",
+          "completed_at": "2026-10-10T05:02:32.941034Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:32.942735Z",
+          "completed_at": "2026-10-10T05:02:34.378059Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 1.4485435485839844,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": "Got 68 results, configured to warn if != 0",
+      "failures": 68,
+      "unique_id": "test.opcrime.assert_no_republished_pdf_duplicates",
+      "compiled": true,
+      "compiled_code": "\n\n-- Same incident ingested twice because OPPD republished the report under a new\n-- filename (-v2 against -v3, or an -02 suffix). Currently 45 groups, 48 rows\n-- double counted downstream. Flagged not fixed: the repair belongs in\n-- drop_exact_source_duplicates. See dbt_writeup.md.\n\nselect\n    complaint_num,\n    count(*)                                 as row_count,\n    string_agg(distinct pdf_filename, ' | ') as filenames\n\nfrom \"opcrime_dbt\".\"main\".\"crimes\"\nwhere complaint_num is not null\ngroup by complaint_num\nhaving count(*) > 1\n   and count(distinct date) = 1\n   and count(distinct offense) = 1\n   and count(distinct location) = 1\n   and count(distinct pdf_filename) > 1",
+      "relation_name": "\"opcrime_dbt\".\"main_dbt_test__audit\".\"assert_no_republished_pdf_duplicates\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.390058Z",
+          "completed_at": "2026-10-10T05:02:34.405588Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.435652Z",
+          "completed_at": "2026-10-10T05:02:34.481757Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.10069108009338379,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_crime_details_record_id.b499c537d6",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect record_id\nfrom \"opcrime_dbt\".\"main\".\"crime_details\"\nwhere record_id is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.408588Z",
+          "completed_at": "2026-10-10T05:02:34.451257Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.453257Z",
+          "completed_at": "2026-10-10T05:02:34.492751Z"
+        }
+      ],
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.09816646575927734,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.relationships_crime_details_record_id__record_id__ref_crimes_.125285382f",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith child as (\n    select record_id as from_field\n    from \"opcrime_dbt\".\"main\".\"crime_details\"\n    where record_id is not null\n),\n\nparent as (\n    select record_id as to_field\n    from \"opcrime_dbt\".\"main\".\"crimes\"\n)\n\nselect\n    from_field\n\nfrom child\nleft join parent\n    on child.from_field = parent.to_field\n\nwhere parent.to_field is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.440646Z",
+          "completed_at": "2026-10-10T05:02:34.457259Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.459259Z",
+          "completed_at": "2026-10-10T05:02:34.494755Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.09416651725769043,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_crime_details_record_id.b4910cf80a",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"crime_details\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:49.986048Z",
-          "completed_at": "2026-10-09T17:02:49.993030Z"
+          "started_at": "2026-10-10T05:02:34.501757Z",
+          "completed_at": "2026-10-10T05:02:34.508754Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:49.995027Z",
-          "completed_at": "2026-10-09T17:02:50.064810Z"
+          "started_at": "2026-10-10T05:02:34.511755Z",
+          "completed_at": "2026-10-10T05:02:34.605744Z"
         }
       ],
       "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.0834970474243164,
+      "execution_time": 0.11199307441711426,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1295,17 +1295,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.100770Z",
-          "completed_at": "2026-10-09T17:02:50.116294Z"
+          "started_at": "2026-10-10T05:02:34.617748Z",
+          "completed_at": "2026-10-10T05:02:34.634064Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.117998Z",
-          "completed_at": "2026-10-09T17:02:50.136727Z"
+          "started_at": "2026-10-10T05:02:34.635270Z",
+          "completed_at": "2026-10-10T05:02:34.674360Z"
         }
       ],
       "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.042954444885253906,
+      "execution_time": 0.061614274978637695,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1323,17 +1323,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.147722Z",
-          "completed_at": "2026-10-09T17:02:50.168724Z"
+          "started_at": "2026-10-10T05:02:34.682358Z",
+          "completed_at": "2026-10-10T05:02:34.710363Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.170725Z",
-          "completed_at": "2026-10-09T17:02:50.314230Z"
+          "started_at": "2026-10-10T05:02:34.711362Z",
+          "completed_at": "2026-10-10T05:02:34.781565Z"
         }
       ],
       "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.17450809478759766,
+      "execution_time": 0.10520648956298828,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1351,17 +1351,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.074810Z",
-          "completed_at": "2026-10-09T17:02:50.081808Z"
+          "started_at": "2026-10-10T05:02:34.524750Z",
+          "completed_at": "2026-10-10T05:02:34.530870Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.089631Z",
-          "completed_at": "2026-10-09T17:02:50.337230Z"
+          "started_at": "2026-10-10T05:02:34.539391Z",
+          "completed_at": "2026-10-10T05:02:34.810079Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.27242112159729004,
+      "execution_time": 0.2943258285522461,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1375,49 +1375,21 @@
       "overload_results": null
     },
     {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:50.359232Z",
-          "completed_at": "2026-10-09T17:02:50.380749Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:50.381749Z",
-          "completed_at": "2026-10-09T17:02:50.414947Z"
-        }
-      ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.07072067260742188,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_dim_zone_zone_id__1__2__3__4__5__6__7__8.cf61ce4a14",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_id as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"dim_zone\"\n    group by zone_id\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    '1','2','3','4','5','6','7','8'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.070809Z",
-          "completed_at": "2026-10-09T17:02:50.080810Z"
+          "started_at": "2026-10-10T05:02:34.520750Z",
+          "completed_at": "2026-10-10T05:02:34.529876Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.082809Z",
-          "completed_at": "2026-10-09T17:02:50.416948Z"
+          "started_at": "2026-10-10T05:02:34.532869Z",
+          "completed_at": "2026-10-10T05:02:34.887587Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.35514044761657715,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.3728337287902832,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1435,17 +1407,45 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.370229Z",
-          "completed_at": "2026-10-09T17:02:50.383749Z"
+          "started_at": "2026-10-10T05:02:34.832116Z",
+          "completed_at": "2026-10-10T05:02:34.855866Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.385748Z",
-          "completed_at": "2026-10-09T17:02:50.418949Z"
+          "started_at": "2026-10-10T05:02:34.857867Z",
+          "completed_at": "2026-10-10T05:02:34.892582Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.07346081733703613,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_dim_zone_zone_id__1__2__3__4__5__6__7__8.cf61ce4a14",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        zone_id as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"dim_zone\"\n    group by zone_id\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    '1','2','3','4','5','6','7','8'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:34.844777Z",
+          "completed_at": "2026-10-10T05:02:34.856867Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:34.859866Z",
+          "completed_at": "2026-10-10T05:02:34.894583Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.06971955299377441,
+      "execution_time": 0.07346653938293457,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1463,17 +1463,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:50.433949Z",
-          "completed_at": "2026-10-09T17:02:50.444975Z"
+          "started_at": "2026-10-10T05:02:34.908584Z",
+          "completed_at": "2026-10-10T05:02:34.919587Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:50.445975Z",
-          "completed_at": "2026-10-09T17:02:50.458977Z"
+          "started_at": "2026-10-10T05:02:34.920583Z",
+          "completed_at": "2026-10-10T05:02:34.933583Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.02902674674987793,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.029000520706176758,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1491,17 +1491,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:47.441587Z",
-          "completed_at": "2026-10-09T17:02:47.484585Z"
+          "started_at": "2026-10-10T05:02:31.172022Z",
+          "completed_at": "2026-10-10T05:02:31.196076Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:47.489585Z",
-          "completed_at": "2026-10-09T17:02:51.872185Z"
+          "started_at": "2026-10-10T05:02:31.202072Z",
+          "completed_at": "2026-10-10T05:02:35.502895Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 4.4907660484313965,
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 4.3647541999816895,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1519,17 +1519,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:51.888181Z",
-          "completed_at": "2026-10-09T17:02:51.892188Z"
+          "started_at": "2026-10-10T05:02:35.518891Z",
+          "completed_at": "2026-10-10T05:02:35.522502Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:51.893187Z",
-          "completed_at": "2026-10-09T17:02:55.579629Z"
+          "started_at": "2026-10-10T05:02:35.523501Z",
+          "completed_at": "2026-10-10T05:02:39.295324Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 3.69244647026062,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 3.7794313430786133,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1547,17 +1547,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:55.597648Z",
-          "completed_at": "2026-10-09T17:02:55.660841Z"
+          "started_at": "2026-10-10T05:02:39.312777Z",
+          "completed_at": "2026-10-10T05:02:39.372056Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:55.661840Z",
-          "completed_at": "2026-10-09T17:02:55.701844Z"
+          "started_at": "2026-10-10T05:02:39.373059Z",
+          "completed_at": "2026-10-10T05:02:39.409058Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.12120556831359863,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.11158370971679688,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1575,17 +1575,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:55.625214Z",
-          "completed_at": "2026-10-09T17:02:55.664842Z"
+          "started_at": "2026-10-10T05:02:39.338299Z",
+          "completed_at": "2026-10-10T05:02:39.376055Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:55.666840Z",
-          "completed_at": "2026-10-09T17:02:55.704844Z"
+          "started_at": "2026-10-10T05:02:39.378059Z",
+          "completed_at": "2026-10-10T05:02:39.412059Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.12221121788024902,
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.11217951774597168,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1603,45 +1603,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:55.651315Z",
-          "completed_at": "2026-10-09T17:02:55.665843Z"
+          "started_at": "2026-10-10T05:02:39.347297Z",
+          "completed_at": "2026-10-10T05:02:39.377056Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:55.669841Z",
-          "completed_at": "2026-10-09T17:02:55.709839Z"
-        }
-      ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.12646031379699707,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_geocode_coverage_record_id.6c8966f3cc",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"geocode_coverage\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:55.636210Z",
-          "completed_at": "2026-10-09T17:02:55.666840Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:55.673842Z",
-          "completed_at": "2026-10-09T17:02:55.715841Z"
+          "started_at": "2026-10-10T05:02:39.380054Z",
+          "completed_at": "2026-10-10T05:02:39.421422Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.13137364387512207,
+      "execution_time": 0.1211693286895752,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1655,21 +1627,49 @@
       "overload_results": null
     },
     {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:39.362296Z",
+          "completed_at": "2026-10-10T05:02:39.377056Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:39.383059Z",
+          "completed_at": "2026-10-10T05:02:39.425423Z"
+        }
+      ],
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.12194991111755371,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_geocode_coverage_record_id.6c8966f3cc",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    record_id as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"geocode_coverage\"\nwhere record_id is not null\ngroup by record_id\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:55.729118Z",
-          "completed_at": "2026-10-09T17:02:55.734168Z"
+          "started_at": "2026-10-10T05:02:39.437719Z",
+          "completed_at": "2026-10-10T05:02:39.441719Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:55.735167Z",
-          "completed_at": "2026-10-09T17:02:56.340895Z"
+          "started_at": "2026-10-10T05:02:39.442719Z",
+          "completed_at": "2026-10-10T05:02:39.962378Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.6137769222259521,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.5281920433044434,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1687,45 +1687,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.358789Z",
-          "completed_at": "2026-10-09T17:02:56.398590Z"
+          "started_at": "2026-10-10T05:02:39.990056Z",
+          "completed_at": "2026-10-10T05:02:40.024382Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.400590Z",
-          "completed_at": "2026-10-09T17:02:56.436404Z"
+          "started_at": "2026-10-10T05:02:40.026383Z",
+          "completed_at": "2026-10-10T05:02:40.063647Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.09340858459472656,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.accepted_values_fct_incidents_primary_crime_against__Person__Property__Society.dd9060a007",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        primary_crime_against as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"fct_incidents\"\n    group by primary_crime_against\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'Person','Property','Society'\n)\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:56.368994Z",
-          "completed_at": "2026-10-09T17:02:56.399592Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:56.404590Z",
-          "completed_at": "2026-10-09T17:02:56.441400Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.09841132164001465,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.09921956062316895,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1743,17 +1715,45 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.378071Z",
-          "completed_at": "2026-10-09T17:02:56.400590Z"
+          "started_at": "2026-10-10T05:02:39.979435Z",
+          "completed_at": "2026-10-10T05:02:40.025380Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.406588Z",
-          "completed_at": "2026-10-09T17:02:56.444407Z"
+          "started_at": "2026-10-10T05:02:40.029381Z",
+          "completed_at": "2026-10-10T05:02:40.065646Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.09841346740722656,
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.10321617126464844,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.accepted_values_fct_incidents_primary_crime_against__Person__Property__Society.dd9060a007",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        primary_crime_against as value_field,\n        count(*) as n_records\n\n    from \"opcrime_dbt\".\"main\".\"fct_incidents\"\n    group by primary_crime_against\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'Person','Property','Society'\n)\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:39.999388Z",
+          "completed_at": "2026-10-10T05:02:40.025380Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:40.032383Z",
+          "completed_at": "2026-10-10T05:02:40.069648Z"
+        }
+      ],
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.10457229614257812,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1771,17 +1771,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.387594Z",
-          "completed_at": "2026-10-09T17:02:56.403588Z"
+          "started_at": "2026-10-10T05:02:40.008380Z",
+          "completed_at": "2026-10-10T05:02:40.029381Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.410404Z",
-          "completed_at": "2026-10-09T17:02:56.449403Z"
+          "started_at": "2026-10-10T05:02:40.035379Z",
+          "completed_at": "2026-10-10T05:02:40.075645Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.10496091842651367,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.10856103897094727,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1799,17 +1799,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.468023Z",
-          "completed_at": "2026-10-09T17:02:56.497847Z"
+          "started_at": "2026-10-10T05:02:40.095556Z",
+          "completed_at": "2026-10-10T05:02:40.126549Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.499845Z",
-          "completed_at": "2026-10-09T17:02:56.526741Z"
+          "started_at": "2026-10-10T05:02:40.128544Z",
+          "completed_at": "2026-10-10T05:02:40.155684Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.07140970230102539,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.07065629959106445,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1827,17 +1827,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.480847Z",
-          "completed_at": "2026-10-09T17:02:56.501843Z"
+          "started_at": "2026-10-10T05:02:40.105542Z",
+          "completed_at": "2026-10-10T05:02:40.130545Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.503846Z",
-          "completed_at": "2026-10-09T17:02:56.531363Z"
+          "started_at": "2026-10-10T05:02:40.132546Z",
+          "completed_at": "2026-10-10T05:02:40.159665Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.07198023796081543,
+      "execution_time": 0.0726923942565918,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1855,17 +1855,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.489842Z",
-          "completed_at": "2026-10-09T17:02:56.502843Z"
+          "started_at": "2026-10-10T05:02:40.114544Z",
+          "completed_at": "2026-10-10T05:02:40.131544Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.505842Z",
-          "completed_at": "2026-10-09T17:02:56.535734Z"
+          "started_at": "2026-10-10T05:02:40.135542Z",
+          "completed_at": "2026-10-10T05:02:40.167234Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.0749506950378418,
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.07634830474853516,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1883,17 +1883,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.563560Z",
-          "completed_at": "2026-10-09T17:02:56.583136Z"
+          "started_at": "2026-10-10T05:02:40.192312Z",
+          "completed_at": "2026-10-10T05:02:40.209564Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.590140Z",
-          "completed_at": "2026-10-09T17:02:56.782465Z"
+          "started_at": "2026-10-10T05:02:40.217562Z",
+          "completed_at": "2026-10-10T05:02:40.384756Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.23510265350341797,
+      "execution_time": 0.20798611640930176,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1907,49 +1907,21 @@
       "overload_results": null
     },
     {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:56.818784Z",
-          "completed_at": "2026-10-09T17:02:56.837782Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:56.842789Z",
-          "completed_at": "2026-10-09T17:02:56.875404Z"
-        }
-      ],
-      "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.07804346084594727,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.not_null_data_profile_summary_measure.40fb22e1f7",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\n\n\nselect measure\nfrom \"opcrime_dbt\".\"main\".\"data_profile_summary\"\nwhere measure is null\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.567974Z",
-          "completed_at": "2026-10-09T17:02:56.589136Z"
+          "started_at": "2026-10-10T05:02:40.197458Z",
+          "completed_at": "2026-10-10T05:02:40.216562Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.597369Z",
-          "completed_at": "2026-10-09T17:02:56.882408Z"
+          "started_at": "2026-10-10T05:02:40.223798Z",
+          "completed_at": "2026-10-10T05:02:40.422997Z"
         }
       ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.3362143039703369,
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.24522972106933594,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1963,21 +1935,77 @@
       "overload_results": null
     },
     {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:40.409995Z",
+          "completed_at": "2026-10-10T05:02:40.424996Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:40.432997Z",
+          "completed_at": "2026-10-10T05:02:40.486089Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 0.08573675155639648,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.not_null_data_profile_summary_measure.40fb22e1f7",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\n\n\nselect measure\nfrom \"opcrime_dbt\".\"main\".\"data_profile_summary\"\nwhere measure is null\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "pass",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-10-10T05:02:40.462514Z",
+          "completed_at": "2026-10-10T05:02:40.478091Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-10-10T05:02:40.481087Z",
+          "completed_at": "2026-10-10T05:02:40.534284Z"
+        }
+      ],
+      "thread_id": "Thread-2 (worker)",
+      "execution_time": 0.08821487426757812,
+      "adapter_response": {
+        "_message": "OK"
+      },
+      "message": null,
+      "failures": 0,
+      "unique_id": "test.opcrime.unique_data_profile_summary_measure.7f9c77007d",
+      "compiled": true,
+      "compiled_code": "\n    \n    \n\nselect\n    measure as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"data_profile_summary\"\nwhere measure is not null\ngroup by measure\nhaving count(*) > 1\n\n\n",
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
       "status": "success",
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.560563Z",
-          "completed_at": "2026-10-09T17:02:56.574548Z"
+          "started_at": "2026-10-10T05:02:40.189312Z",
+          "completed_at": "2026-10-10T05:02:40.203562Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.584137Z",
-          "completed_at": "2026-10-09T17:02:56.903768Z"
+          "started_at": "2026-10-10T05:02:40.211567Z",
+          "completed_at": "2026-10-10T05:02:40.550807Z"
         }
       ],
-      "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.3552055358886719,
+      "thread_id": "Thread-3 (worker)",
+      "execution_time": 0.37537264823913574,
       "adapter_response": {
         "_message": "OK"
       },
@@ -1995,17 +2023,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.557563Z",
-          "completed_at": "2026-10-09T17:02:56.574012Z"
+          "started_at": "2026-10-10T05:02:40.184764Z",
+          "completed_at": "2026-10-10T05:02:40.202562Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.575617Z",
-          "completed_at": "2026-10-09T17:02:56.922767Z"
+          "started_at": "2026-10-10T05:02:40.204563Z",
+          "completed_at": "2026-10-10T05:02:40.557399Z"
         }
       ],
-      "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.37520503997802734,
+      "thread_id": "Thread-4 (worker)",
+      "execution_time": 0.3829042911529541,
       "adapter_response": {
         "_message": "OK"
       },
@@ -2023,45 +2051,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.911768Z",
-          "completed_at": "2026-10-09T17:02:56.927770Z"
+          "started_at": "2026-10-10T05:02:40.513914Z",
+          "completed_at": "2026-10-10T05:02:40.532123Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.938892Z",
-          "completed_at": "2026-10-09T17:02:56.994650Z"
+          "started_at": "2026-10-10T05:02:40.536684Z",
+          "completed_at": "2026-10-10T05:02:40.588791Z"
         }
       ],
       "thread_id": "Thread-1 (worker)",
-      "execution_time": 0.09686851501464844,
-      "adapter_response": {
-        "_message": "OK"
-      },
-      "message": null,
-      "failures": 0,
-      "unique_id": "test.opcrime.unique_data_profile_summary_measure.7f9c77007d",
-      "compiled": true,
-      "compiled_code": "\n    \n    \n\nselect\n    measure as unique_field,\n    count(*) as n_records\n\nfrom \"opcrime_dbt\".\"main\".\"data_profile_summary\"\nwhere measure is not null\ngroup by measure\nhaving count(*) > 1\n\n\n",
-      "relation_name": null,
-      "batch_results": null,
-      "overload_results": null
-    },
-    {
-      "status": "pass",
-      "timing": [
-        {
-          "name": "compile",
-          "started_at": "2026-10-09T17:02:56.927770Z",
-          "completed_at": "2026-10-09T17:02:56.943900Z"
-        },
-        {
-          "name": "execute",
-          "started_at": "2026-10-09T17:02:56.946892Z",
-          "completed_at": "2026-10-09T17:02:57.000643Z"
-        }
-      ],
-      "thread_id": "Thread-4 (worker)",
-      "execution_time": 0.09587240219116211,
+      "execution_time": 0.09435248374938965,
       "adapter_response": {
         "_message": "OK"
       },
@@ -2079,17 +2079,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.950891Z",
-          "completed_at": "2026-10-09T17:02:56.963891Z"
+          "started_at": "2026-10-10T05:02:40.566139Z",
+          "completed_at": "2026-10-10T05:02:40.580603Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.976417Z",
-          "completed_at": "2026-10-09T17:02:57.014641Z"
+          "started_at": "2026-10-10T05:02:40.583470Z",
+          "completed_at": "2026-10-10T05:02:40.620868Z"
         }
       ],
       "thread_id": "Thread-2 (worker)",
-      "execution_time": 0.07674479484558105,
+      "execution_time": 0.06619977951049805,
       "adapter_response": {
         "_message": "OK"
       },
@@ -2107,17 +2107,17 @@
       "timing": [
         {
           "name": "compile",
-          "started_at": "2026-10-09T17:02:56.965894Z",
-          "completed_at": "2026-10-09T17:02:56.981415Z"
+          "started_at": "2026-10-10T05:02:40.590957Z",
+          "completed_at": "2026-10-10T05:02:40.605768Z"
         },
         {
           "name": "execute",
-          "started_at": "2026-10-09T17:02:56.984414Z",
-          "completed_at": "2026-10-09T17:02:57.018640Z"
+          "started_at": "2026-10-10T05:02:40.608040Z",
+          "completed_at": "2026-10-10T05:02:40.630340Z"
         }
       ],
       "thread_id": "Thread-3 (worker)",
-      "execution_time": 0.06274747848510742,
+      "execution_time": 0.05011391639709473,
       "adapter_response": {
         "_message": "OK"
       },
@@ -2131,7 +2131,7 @@
       "overload_results": null
     }
   ],
-  "elapsed_time": 11.614086866378784,
+  "elapsed_time": 11.60971474647522,
   "args": {
     "note": "removed before publish; contained local filesystem paths"
   }
